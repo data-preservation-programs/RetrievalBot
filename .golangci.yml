@@ -1,0 +1,82 @@
+run:
+  tests: true
+  skip-dirs:
+    - extern
+  skip-files:
+    - _test\.go
+
+issues:
+  exclude-rules:
+    - linters:
+        - wsl
+      text: "branch statements should not be cuddled if block has more than two lines"
+    - linters:
+        - wsl
+      text: "return statements should not be cuddled if block has more than two lines"
+
+linters:
+  enable-all: true
+  disable:
+    - typecheck
+    - interfacer
+    - structcheck
+    - golint
+    - ifshort
+    - scopelint
+    - varcheck
+    - varnamelen
+    - maligned
+    - deadcode
+    - structcheck
+    - gci
+    - goimports
+    - gofumpt
+    - nolintlint
+    - ireturn
+    - exhaustivestruct
+    - nosnakecase
+    - nlreturn
+    - godox
+    - gomoddirectives
+    - rowserrcheck
+    - sqlclosecheck
+    - wastedassign
+    - gocognit
+    - wsl
+    - musttag
+    - exhaustruct
+
+linters-settings:
+  revive:
+    rules:
+      - name: exported
+        severity: warning
+        disabled: false
+        arguments:
+          - "disableStutteringCheck"
+  wsl:
+    allow-cuddle-declarations: true
+    force-err-cuddling: true
+  nilnil:
+    checked-types:
+      - func
+      - iface
+      - map
+      - chan
+  paralleltest:
+    ignore-missing: true
+  funlen:
+    lines: 180
+    statements: 120
+  cyclop:
+    max-complexity: 20
+  wrapcheck:
+    ignoreSigRegexps:
+      - \.JSON\(
+      - \.NoContent\(
+      - \.Error\(
+  gomnd:
+    ignored-numbers:
+      - '0666'
+      - '0755'
+      - '0o755'
