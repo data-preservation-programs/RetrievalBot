@@ -62,6 +62,7 @@ func main() {
 }
 
 func refresh(ctx context.Context) error {
+	batchSize := 1000
 	logger := logging.Logger("state-market-deals")
 	client, err := mongo.Connect(ctx, options.Client().ApplyURI(os.Getenv("STATEMARKETDEALS_MONGO_URI")))
 	if err != nil {
@@ -117,8 +118,10 @@ func refresh(ctx context.Context) error {
 
 	jsonDecoder := jstream.NewDecoder(decompressor, 1).EmitKV()
 	count := 0
+	dealBatch := make([]interface{}, 0, batchSize)
 	for stream := range jsonDecoder.Stream() {
 		keyValuePair, ok := stream.Value.(jstream.KV)
+
 		if !ok {
 			return errors.New("failed to get key value pair")
 		}
@@ -151,18 +154,36 @@ func refresh(ctx context.Context) error {
 				Expiration: epochToTime(deal.Proposal.EndEpoch),
 			}
 
-			inserted, err := collection.InsertOne(ctx, dealState)
-			if err != nil {
-				return errors.Wrap(err, "failed to insert deal into mongo")
-			}
-
+			dealBatch = append(dealBatch, dealState)
 			logger.With("deal_id", dealId).
-				With("inserted_id", inserted.InsertedID).
-				Debug("inserted deal state into mongo")
-			count += 1
+				Debug("inserting deal state into mongo")
+
+			if len(dealBatch) == batchSize {
+				_, err := collection.InsertMany(ctx, dealBatch)
+				if err != nil {
+					return errors.Wrap(err, "failed to insert deal into mongo")
+				}
+
+				count += len(dealBatch)
+				dealBatch = make([]interface{}, 0, batchSize)
+			}
 		}
 	}
 
+	if len(dealBatch) > 0 {
+		_, err := collection.InsertMany(ctx, dealBatch)
+		if err != nil {
+			return errors.Wrap(err, "failed to insert deal into mongo")
+		}
+
+		count += len(dealBatch)
+	}
+
 	logger.With("count", count).Info("finished inserting deals into mongo")
+	if jsonDecoder.Err() != nil {
+		logger.With("position", jsonDecoder.Pos()).Warn("prematurely reached end of json stream")
+		return errors.Wrap(jsonDecoder.Err(), "failed to decode json further")
+	}
+
 	return nil
 }
