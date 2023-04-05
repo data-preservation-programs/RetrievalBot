@@ -5,4 +5,5 @@ use (
 	./integrations/stub
 	./integrations/statemarketdeals
 	./common
+	integrations/filplus
 )

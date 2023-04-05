@@ -11,23 +11,22 @@ type Provider struct {
 type ModuleName string
 
 const (
-	Stub ModuleName = "stub"
+	Stub      ModuleName = "stub"
+	GraphSync ModuleName = "graphsync"
+	HTTP      ModuleName = "http"
+	Bitswap   ModuleName = "bitswap"
 )
 
 type Content struct {
 	CID string `bson:"cid"`
 }
 
-type Strategy struct {
-	Type string `bson:"type"`
-}
-
 type Task struct {
-	Requester string            `bson:"requester"`
-	Module    ModuleName        `bson:"module"`
-	Metadata  map[string]string `bson:"metadata,omitempty"`
-	Provider  Provider          `bson:"provider"`
-	Content   Content           `bson:"content"`
-	Strategy  Strategy          `bson:"strategy"`
-	CreatedAt time.Time         `bson:"created_at"`
+	Requester string                 `bson:"requester"`
+	Module    ModuleName             `bson:"module"`
+	Metadata  map[string]interface{} `bson:"metadata,omitempty"`
+	Provider  Provider               `bson:"provider"`
+	Content   Content                `bson:"content"`
+	Options   map[string]interface{} `bson:"options,omitempty"`
+	CreatedAt time.Time              `bson:"created_at"`
 }

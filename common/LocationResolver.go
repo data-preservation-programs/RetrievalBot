@@ -3,6 +3,9 @@ package common
 import (
 	"context"
 	"encoding/json"
+	"github.com/data-preservation-programs/RetrievalBot/common/resources"
+	"github.com/filecoin-project/go-state-types/abi"
+	logging "github.com/ipfs/go-log/v2"
 	"github.com/jellydator/ttlcache/v3"
 	"github.com/multiformats/go-multiaddr"
 	"github.com/pkg/errors"
@@ -14,18 +17,20 @@ import (
 )
 
 type IPInfo struct {
-	IP       string `json:"ip"`
-	City     string `json:"city"`
-	Region   string `json:"region"`
-	Country  string `json:"country"`
-	Loc      string `json:"loc"`
-	Org      string `json:"org"`
-	Postal   string `json:"postal"`
-	Timezone string `json:"timezone"`
-	Bogon    bool   `json:"bogon"`
+	IP        string `json:"ip"`
+	City      string `json:"city"`
+	Region    string `json:"region"`
+	Country   string `json:"country"`
+	Continent string `json:"continent"`
+	Loc       string `json:"loc"`
+	Org       string `json:"org"`
+	Postal    string `json:"postal"`
+	Timezone  string `json:"timezone"`
+	Bogon     bool   `json:"bogon"`
 }
 
 func GetPublicIPInfo(ctx context.Context, ip string, token string) (IPInfo, error) {
+	logger := logging.Logger("location_resolver")
 	url := "https://ipinfo.io/json"
 	if ip != "" {
 		url = "https://ipinfo.io/" + ip + "/json"
@@ -35,6 +40,7 @@ func GetPublicIPInfo(ctx context.Context, ip string, token string) (IPInfo, erro
 		url = url + "?token=" + token
 	}
 
+	logger.Debugf("Getting IP info for %s", ip)
 	request, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return IPInfo{}, errors.Wrap(err, "failed to create http request")
@@ -53,28 +59,56 @@ func GetPublicIPInfo(ctx context.Context, ip string, token string) (IPInfo, erro
 		return IPInfo{}, errors.Wrap(err, "failed to decode IP info")
 	}
 
+	logger.Debugf("Got IP info for %s: %+v", ip, ipInfo)
 	return ipInfo, nil
 }
 
 type LocationResolver struct {
-	cache       *ttlcache.Cache[string, IPInfo]
-	ipInfoToken string
+	cache          *ttlcache.Cache[string, IPInfo]
+	ipInfoToken    string
+	countryMapping map[string]string
 }
 
-func NewLocationResolver(ipInfoToken string) LocationResolver {
+func NewLocationResolver(ipInfoToken string, ttl time.Duration) LocationResolver {
 	cache := ttlcache.New[string, IPInfo](
 		//nolint:gomnd
-		ttlcache.WithTTL[string, IPInfo](time.Hour*24),
+		ttlcache.WithTTL[string, IPInfo](ttl),
 		ttlcache.WithDisableTouchOnHit[string, IPInfo]())
+	countryMapping := make(map[string]string)
+	if err := json.Unmarshal(resources.CountryToContinentJSON, &countryMapping); err != nil {
+		panic(err)
+	}
 	return LocationResolver{
 		cache,
 		ipInfoToken,
+		countryMapping,
 	}
 }
 
 func (l LocationResolver) ResolveIP(ctx context.Context, ip net.IP) (IPInfo, error) {
+	logger := logging.Logger("location_resolver")
 	ipString := ip.String()
-	return GetPublicIPInfo(ctx, ipString, l.ipInfoToken)
+	if ipInfo := l.cache.Get(ipString); ipInfo != nil {
+		return ipInfo.Value(), nil
+	}
+
+	ipInfo, err := GetPublicIPInfo(ctx, ipString, l.ipInfoToken)
+	if continent, ok := l.countryMapping[ipInfo.Country]; ok {
+		ipInfo.Continent = continent
+	} else {
+		logger.Error("Unknown country: " + ipInfo.Country)
+	}
+
+	if err != nil {
+		return IPInfo{}, errors.Wrap(err, "failed to get IP info")
+	}
+
+	if ipInfo.Bogon {
+		return IPInfo{}, errors.New("bogon IP address")
+	}
+
+	l.cache.Set(ipString, ipInfo, ttlcache.DefaultTTL)
+	return ipInfo, nil
 }
 
 func (l LocationResolver) ResolveIPStr(ctx context.Context, ip string) (IPInfo, error) {
@@ -83,7 +117,7 @@ func (l LocationResolver) ResolveIPStr(ctx context.Context, ip string) (IPInfo, 
 		return IPInfo{}, errors.Errorf("invalid IP address: %s", ip)
 	}
 
-	return GetPublicIPInfo(ctx, ip, l.ipInfoToken)
+	return l.ResolveIP(ctx, parsed)
 }
 
 func (l LocationResolver) ResolveMultiaddr(ctx context.Context, addr multiaddr.Multiaddr) (IPInfo, error) {
@@ -102,6 +136,37 @@ func (l LocationResolver) ResolveMultiaddr(ctx context.Context, addr multiaddr.M
 	}
 
 	return l.ResolveIPStr(ctx, host)
+}
+
+func (l LocationResolver) ResolveMultiaddrsBytes(ctx context.Context, bytesAddrs []abi.Multiaddrs) (IPInfo, error) {
+	logger := logging.Logger("location_resolver")
+	addrs := make([]multiaddr.Multiaddr, 0)
+	for _, bytesAddr := range bytesAddrs {
+		addr, err := multiaddr.NewMultiaddrBytes(bytesAddr)
+		if err != nil {
+			logger.With("err", err).Debugf("Failed to decode multiaddr %s", bytesAddr)
+			continue
+		}
+
+		addrs = append(addrs, addr)
+	}
+
+	return l.ResolveMultiaddrs(ctx, addrs)
+}
+
+func (l LocationResolver) ResolveMultiaddrs(ctx context.Context, addrs []multiaddr.Multiaddr) (IPInfo, error) {
+	logger := logging.Logger("location_resolver")
+	for _, addr := range addrs {
+		ipInfo, err := l.ResolveMultiaddr(ctx, addr)
+		if err != nil {
+			logger.With("err", err).Debugf("Failed to resolve multiaddr %s", addr)
+			continue
+		}
+
+		return ipInfo, nil
+	}
+
+	return IPInfo{}, errors.New("failed to resolve any multiaddr")
 }
 
 type IsHostName = bool
