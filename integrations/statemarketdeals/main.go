@@ -45,19 +45,33 @@ type DealState struct {
 }
 
 func epochToTime(epoch int32) time.Time {
+	//nolint:gomnd
 	return time.Unix(int64(epoch*30+1598306400), 0)
 }
 
 func main() {
 	ctx := context.Background()
+	intervalString := os.Getenv("STATEMARKETDEALS_INTERVAL_SECONDS")
+	if intervalString == "" {
+		intervalString = "21600"
+	}
+
+	intervalSecond, err := strconv.Atoi(intervalString)
+
+	if err != nil {
+		panic(err)
+	}
+
+	interval := time.Duration(intervalSecond) * time.Second
+
 	for {
 		err := refresh(ctx)
 		if err != nil {
 			logging.Logger("state-market-deals").Error(err)
 		}
 
-		logging.Logger("state-market-deals").Info("sleeping for 6 hours")
-		time.Sleep(6 * time.Hour)
+		logging.Logger("state-market-deals").With("interval", interval).Info("sleeping")
+		time.Sleep(interval)
 	}
 }
 
@@ -69,31 +83,35 @@ func refresh(ctx context.Context) error {
 		return errors.Wrap(err, "failed to connect to mongo")
 	}
 
+	//nolint:errcheck
 	defer client.Disconnect(ctx)
 	collection := client.Database(os.Getenv("STATEMARKETDEALS_MONGO_DATABASE")).
 		Collection("state_market_deals")
 
 	logger.Info("getting deal ids from mongo")
-	dealIdCursor, err := collection.Find(ctx, bson.D{}, options.Find().SetProjection(bson.M{"deal_id": 1, "_id": 0}))
+	dealIDCursor, err := collection.Find(ctx, bson.D{}, options.Find().SetProjection(bson.M{"deal_id": 1, "_id": 0}))
 	if err != nil {
 		return errors.Wrap(err, "failed to get deal ids")
 	}
 
-	defer dealIdCursor.Close(ctx)
+	defer dealIDCursor.Close(ctx)
 	var dealIds []common.DealID
-	err = dealIdCursor.All(ctx, &dealIds)
+	err = dealIDCursor.All(ctx, &dealIds)
 	if err != nil {
 		return errors.Wrap(err, "failed to retrieve all deal ids")
 	}
 
 	logger.Infof("retrieved %d deal ids", len(dealIds))
-	dealIdSet := make(map[int32]struct{})
-	for _, dealId := range dealIds {
-		dealIdSet[dealId.DealID] = struct{}{}
+	dealIDSet := make(map[int32]struct{})
+	for _, dealID := range dealIds {
+		dealIDSet[dealID.DealID] = struct{}{}
 	}
 
 	logger.Info("getting deals from state market deals")
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "https://marketdeals.s3.amazonaws.com/StateMarketDeals.json.zst", nil)
+	req, err := http.NewRequestWithContext(ctx,
+		http.MethodGet,
+		"https://marketdeals.s3.amazonaws.com/StateMarketDeals.json.zst",
+		nil)
 	if err != nil {
 		return errors.Wrap(err, "failed to create request")
 	}
@@ -137,15 +155,17 @@ func refresh(ctx context.Context) error {
 			continue
 		}
 
-		dealId, err := strconv.Atoi(keyValuePair.Key)
+		dealID, err := strconv.Atoi(keyValuePair.Key)
 		if err != nil {
 			return errors.Wrap(err, "failed to convert deal id to int")
 		}
 
 		// Insert into mongo if the deal is not in mongo
-		if _, ok := dealIdSet[int32(dealId)]; !ok {
+		//nolint:gosec
+		if _, ok := dealIDSet[int32(dealID)]; !ok {
 			dealState := common.DealState{
-				DealID:     int32(dealId),
+				//nolint:gosec
+				DealID:     int32(dealID),
 				PieceCID:   deal.Proposal.PieceCID.Root,
 				Label:      deal.Proposal.Label,
 				Verified:   deal.Proposal.VerifiedDeal,
@@ -155,7 +175,7 @@ func refresh(ctx context.Context) error {
 			}
 
 			dealBatch = append(dealBatch, dealState)
-			logger.With("deal_id", dealId).
+			logger.With("deal_id", dealID).
 				Debug("inserting deal state into mongo")
 
 			if len(dealBatch) == batchSize {

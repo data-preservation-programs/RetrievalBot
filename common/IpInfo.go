@@ -63,6 +63,7 @@ type LocationResolver struct {
 
 func NewLocationResolver(ipInfoToken string) LocationResolver {
 	cache := ttlcache.New[string, IPInfo](
+		//nolint:gomnd
 		ttlcache.WithTTL[string, IPInfo](time.Hour*24),
 		ttlcache.WithDisableTouchOnHit[string, IPInfo]())
 	return LocationResolver{
@@ -105,9 +106,9 @@ func (l LocationResolver) ResolveMultiaddr(ctx context.Context, addr multiaddr.M
 
 type IsHostName = bool
 type PortNumber = int
-type IpOrHost = string
+type IPOrHost = string
 
-func DecodeMultiaddr(addr multiaddr.Multiaddr) (IpOrHost, IsHostName, PortNumber, error) {
+func DecodeMultiaddr(addr multiaddr.Multiaddr) (IPOrHost, IsHostName, PortNumber, error) {
 	protocols := addr.Protocols()
 	isHostName := false
 	const expectedProtocolCount = 2
