@@ -33,9 +33,6 @@ func main() {
 			Content: common.Content{
 				CID: "FakeCID",
 			},
-			Strategy: common.Strategy{
-				Type: "stub",
-			},
 			CreatedAt: time.Now().UTC(),
 		}
 		insertResult, err := taskCollection.InsertOne(ctx, task)

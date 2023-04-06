@@ -15,3 +15,8 @@ type DealState struct {
 type DealID struct {
 	DealID int32 `bson:"deal_id"`
 }
+
+func EpochToTime(epoch int32) time.Time {
+	//nolint:gomnd
+	return time.Unix(int64(epoch*30+1598306400), 0)
+}

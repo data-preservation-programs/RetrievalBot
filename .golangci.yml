@@ -45,6 +45,8 @@ linters:
     - wsl
     - musttag
     - exhaustruct
+    - cyclop
+    - gomnd
 
 linters-settings:
   revive:

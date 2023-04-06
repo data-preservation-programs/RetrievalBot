@@ -44,11 +44,6 @@ type DealState struct {
 	SlashEpoch       int32
 }
 
-func epochToTime(epoch int32) time.Time {
-	//nolint:gomnd
-	return time.Unix(int64(epoch*30+1598306400), 0)
-}
-
 func main() {
 	ctx := context.Background()
 	intervalString := os.Getenv("STATEMARKETDEALS_INTERVAL_SECONDS")
@@ -155,6 +150,11 @@ func refresh(ctx context.Context) error {
 			continue
 		}
 
+		// Skip the deal if the deal has already expired
+		if common.EpochToTime(deal.Proposal.EndEpoch).Unix() <= time.Now().Unix() {
+			continue
+		}
+
 		dealID, err := strconv.Atoi(keyValuePair.Key)
 		if err != nil {
 			return errors.Wrap(err, "failed to convert deal id to int")
@@ -171,7 +171,7 @@ func refresh(ctx context.Context) error {
 				Verified:   deal.Proposal.VerifiedDeal,
 				Client:     deal.Proposal.Client,
 				Provider:   deal.Proposal.Provider,
-				Expiration: epochToTime(deal.Proposal.EndEpoch),
+				Expiration: common.EpochToTime(deal.Proposal.EndEpoch),
 			}
 
 			dealBatch = append(dealBatch, dealState)
@@ -205,5 +205,12 @@ func refresh(ctx context.Context) error {
 		return errors.Wrap(jsonDecoder.Err(), "failed to decode json further")
 	}
 
+	// Finally, remove all expired deals from mongo
+	deleteResult, err := collection.DeleteMany(ctx, bson.M{"expiration": bson.M{"$lt": time.Now()}})
+	if err != nil {
+		return errors.Wrap(err, "failed to delete expired deals")
+	}
+
+	logger.With("count", deleteResult.DeletedCount).Info("finished deleting expired deals from mongo")
 	return nil
 }

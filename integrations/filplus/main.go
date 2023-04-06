@@ -3,8 +3,6 @@ package main
 import (
 	"context"
 	"github.com/data-preservation-programs/RetrievalBot/common"
-	"github.com/filecoin-project/go-jsonrpc"
-	"github.com/filecoin-project/lotus/api"
 	"github.com/ipfs/go-cid"
 	logging "github.com/ipfs/go-log/v2"
 	_ "github.com/joho/godotenv/autoload"
@@ -20,6 +18,7 @@ import (
 func main() {
 	logger := logging.Logger("filplus-integration")
 	filplus := NewFilPlusIntegration()
+	defer filplus.Close()
 	for {
 		err := filplus.RunOnce(context.TODO())
 		if err != nil {
@@ -37,8 +36,6 @@ type FilPlusIntegration struct {
 	requester             string
 	locationResolver      common.LocationResolver
 	providerResolver      common.ProviderResolver
-	lotusAPI              api.FullNode
-	lotusAPICloser        jsonrpc.ClientCloser
 }
 
 func NewFilPlusIntegration() *FilPlusIntegration {
@@ -96,11 +93,12 @@ func NewFilPlusIntegration() *FilPlusIntegration {
 }
 
 func (f *FilPlusIntegration) Close() {
-	f.lotusAPICloser()
+	f.providerResolver.Close()
 }
 
 func (f *FilPlusIntegration) RunOnce(ctx context.Context) error {
 	logger := logging.Logger("filplus-integration")
+	logger.Info("start running filplus integration")
 
 	// If the task queue already have batch size tasks, do nothing
 	count, err := f.taskCollection.CountDocuments(ctx, bson.M{"requester": f.requester})
@@ -109,17 +107,17 @@ func (f *FilPlusIntegration) RunOnce(ctx context.Context) error {
 	}
 
 	if count >= 3*int64(f.batchSize) {
-		logger.Infof("task queue already have %d tasks, do nothing", f.batchSize)
+		logger.Infof("task queue already have %d tasks, do nothing", f.batchSize*3)
 		return nil
 	}
 
 	// Get random documents from state_market_deals that are still active and is verified
 	aggregateResult, err := f.marketDealsCollection.Aggregate(ctx, bson.A{
+		bson.M{"$sample": bson.M{"size": f.batchSize}},
 		bson.M{"$match": bson.M{
 			"verified":   true,
-			"Expiration": bson.M{"$gt": time.Now().Unix()},
+			"expiration": bson.M{"$gt": time.Now().UTC()},
 		}},
-		bson.M{"$sample": bson.M{"size": f.batchSize}},
 	})
 
 	if err != nil {
