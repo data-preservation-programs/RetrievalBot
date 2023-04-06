@@ -3,12 +3,12 @@ package main
 import (
 	"context"
 	"github.com/data-preservation-programs/RetrievalBot/common"
-	"github.com/data-preservation-programs/RetrievalBot/modules/stub"
+	"github.com/data-preservation-programs/RetrievalBot/modules/http"
 )
 
 func main() {
-	worker := stub.Worker{}
-	process, err := common.NewTaskWorkerProcess(context.Background(), common.Stub, worker)
+	worker := http.Worker{}
+	process, err := common.NewTaskWorkerProcess(context.Background(), common.HTTP, worker)
 	if err != nil {
 		panic(err)
 	}

@@ -2,6 +2,9 @@ go 1.19
 
 use (
 	./modules/stub
+	./modules/graphsync
+	./modules/http
+	./modules/bitswap
 	./integrations/stub
 	./integrations/statemarketdeals
 	./common

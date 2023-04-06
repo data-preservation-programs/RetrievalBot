@@ -1,13 +1,13 @@
-package stub
+package http
 
 import (
 	"github.com/data-preservation-programs/RetrievalBot/common"
 	"math/rand"
 )
 
-type Stub struct{}
+type Worker struct{}
 
-func (e Stub) DoWork(_ common.Task) (common.RetrievalResult, error) {
+func (e Worker) DoWork(_ common.Task) (common.RetrievalResult, error) {
 	//nolint: gosec
 	return common.RetrievalResult{
 		Success:    true,
