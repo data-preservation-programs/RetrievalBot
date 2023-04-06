@@ -23,20 +23,15 @@ func main() {
 	for {
 		task := common.Task{
 			Requester: "stub",
+			Module:    common.Stub,
 			Metadata:  nil,
 			Provider: common.Provider{
 				ID:        "FakeID",
 				Country:   "US",
 				Continent: "NA",
 			},
-			Protocol: common.Protocol{
-				Name: common.Stub,
-			},
 			Content: common.Content{
 				CID: "FakeCID",
-			},
-			Strategy: common.Strategy{
-				Type: "stub",
 			},
 			CreatedAt: time.Now().UTC(),
 		}
