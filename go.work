@@ -3,6 +3,5 @@ go 1.19
 use (
 	./modules/stub
 	./integrations/stub
-	./integrations/statemarketdeals
 	./common
 )

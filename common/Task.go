@@ -8,11 +8,18 @@ type Provider struct {
 	Continent string `bson:"continent,omitempty"`
 }
 
-type ModuleName string
+type ProtocolName string
 
 const (
-	Stub ModuleName = "stub"
+	Stub      ProtocolName = "stub"
+	GraphSync ProtocolName = "graphsync"
+	Bitswap   ProtocolName = "bitswap"
+	HTTP      ProtocolName = "http"
 )
+
+type Protocol struct {
+	Name ProtocolName `bson:"name"`
+}
 
 type Content struct {
 	CID string `bson:"cid"`
@@ -24,9 +31,9 @@ type Strategy struct {
 
 type Task struct {
 	Requester string            `bson:"requester"`
-	Module    ModuleName        `bson:"module"`
 	Metadata  map[string]string `bson:"metadata,omitempty"`
 	Provider  Provider          `bson:"provider"`
+	Protocol  Protocol          `bson:"protocol"`
 	Content   Content           `bson:"content"`
 	Strategy  Strategy          `bson:"strategy"`
 	CreatedAt time.Time         `bson:"created_at"`

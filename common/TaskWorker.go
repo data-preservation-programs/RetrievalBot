@@ -23,7 +23,7 @@ type TaskWorkerProcess struct {
 	taskCollection     *mongo.Collection
 	resultCollection   *mongo.Collection
 	worker             TaskWorker
-	module             ModuleName
+	protocolName       ProtocolName
 	acceptedContinents []string
 	acceptedCountries  []string
 	pollInterval       time.Duration
@@ -48,7 +48,7 @@ func (t TaskWorkerProcess) Close() {
 
 func NewTaskWorkerProcess(
 	ctx context.Context,
-	module ModuleName,
+	protocolName ProtocolName,
 	worker TaskWorker) (*TaskWorkerProcess, error) {
 	taskClient, err := mongo.Connect(ctx, options.Client().ApplyURI(GetRequiredEnv("QUEUE_MONGO_URI")))
 	if err != nil {
@@ -114,7 +114,7 @@ func NewTaskWorkerProcess(
 		taskCollection,
 		resultCollection,
 		worker,
-		module,
+		protocolName,
 		acceptedContinents,
 		acceptedCountries,
 		pollInterval,
@@ -123,14 +123,14 @@ func NewTaskWorkerProcess(
 }
 
 func (t TaskWorkerProcess) Poll(ctx context.Context) error {
-	logger := logging.Logger("task-worker").With("protocol", t.module, "workerId", t.id)
+	logger := logging.Logger("task-worker").With("protocol", t.protocolName, "workerId", t.id)
 	var singleResult *mongo.SingleResult
 	for {
 		logger.Debug("polling for task")
 
 		//nolint:govet
 		match := bson.D{
-			{"module", t.module},
+			{"protocol.name", t.protocolName},
 		}
 
 		if len(t.acceptedCountries) > 0 {

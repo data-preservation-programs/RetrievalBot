@@ -78,7 +78,7 @@ func NewProcessManager() (*ProcessManager, error) {
 	}
 
 	// Check public IP address
-	ipInfo, err := GetPublicIPInfo(context.TODO(), "", "")
+	ipInfo, err := GetPublicIPInfo()
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to get public IP info")
 	}
