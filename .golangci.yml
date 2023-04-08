@@ -33,7 +33,6 @@ linters:
     - gofumpt
     - nolintlint
     - ireturn
-    - exhaustivestruct
     - nosnakecase
     - nlreturn
     - godox
@@ -44,9 +43,10 @@ linters:
     - gocognit
     - wsl
     - musttag
-    - exhaustruct
+    - exhaustivestruct
     - cyclop
     - gomnd
+    - gochecknoglobals
 
 linters-settings:
   revive:
@@ -82,3 +82,6 @@ linters-settings:
       - '0666'
       - '0755'
       - '0o755'
+  exhaustruct:
+    include:
+      - 'github.com/data-preservation-programs/RetrievalBot/pkg/task.*'
