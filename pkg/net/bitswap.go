@@ -31,7 +31,8 @@ func (s SingleContentRouter) GetValue(context.Context, string, ...routing.Option
 	return nil, routing.ErrNotFound
 }
 
-func (s SingleContentRouter) SearchValue(ctx context.Context, key string, opts ...routing.Option) (<-chan []byte, error) {
+func (s SingleContentRouter) SearchValue(ctx context.Context, key string, opts ...routing.Option) (
+	<-chan []byte, error) {
 	return nil, routing.ErrNotFound
 }
 
@@ -106,7 +107,8 @@ func (c BitswapClient) Retrieve(
 	})
 	bswap := bsclient.New(parent, network, blockstore.NewBlockstore(datastore.NewMapDatastore()))
 	notFound := make(chan struct{})
-	network.Start(MessageReceiver{BSClient: bswap, MessageHandler: func(ctx context.Context, sender peer.ID, incoming bsmsg.BitSwapMessage) {
+	network.Start(MessageReceiver{BSClient: bswap, MessageHandler: func(
+		ctx context.Context, sender peer.ID, incoming bsmsg.BitSwapMessage) {
 		if sender == target.ID && slices.Contains(incoming.DontHaves(), cid) {
 			logger.Info("Block not found")
 			close(notFound)
@@ -138,7 +140,8 @@ func (c BitswapClient) Retrieve(
 	}()
 	select {
 	case <-notFound:
-		return task.NewErrorRetrievalResult(task.NotFound, errors.New("DONT_HAVE received from the target peer")), nil
+		return task.NewErrorRetrievalResult(
+			task.NotFound, errors.New("DONT_HAVE received from the target peer")), nil
 	case blk := <-resultChan:
 		elapsed := time.Since(startTime)
 		var size = int64(len(blk.RawData()))
