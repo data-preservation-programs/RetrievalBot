@@ -4,6 +4,7 @@ import (
 	"context"
 	"github.com/data-preservation-programs/RetrievalBot/pkg/task"
 	"github.com/data-preservation-programs/RetrievalBot/worker/stub"
+	_ "github.com/joho/godotenv/autoload"
 )
 
 func main() {

@@ -14,7 +14,6 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
-	"os"
 	"strconv"
 	"time"
 )
@@ -45,29 +44,29 @@ type FilPlusIntegration struct {
 func NewFilPlusIntegration() *FilPlusIntegration {
 	ctx := context.Background()
 	taskClient, err := mongo.
-		Connect(ctx, options.Client().ApplyURI(env.GetRequiredString("QUEUE_MONGO_URI")))
+		Connect(ctx, options.Client().ApplyURI(env.GetRequiredString(env.QueueMongoURI)))
 	if err != nil {
 		panic(err)
 	}
 	taskCollection := taskClient.
-		Database(env.GetRequiredString("QUEUE_MONGO_DATABASE")).Collection("task_queue")
+		Database(env.GetRequiredString(env.QueueMongoDatabase)).Collection("task_queue")
 
 	stateMarketDealsClient, err := mongo.
-		Connect(ctx, options.Client().ApplyURI(env.GetRequiredString("STATEMARKETDEALS_MONGO_URI")))
+		Connect(ctx, options.Client().ApplyURI(env.GetRequiredString(env.StatemarketdealsMongoURI)))
 	if err != nil {
 		panic(err)
 	}
 	marketDealsCollection := stateMarketDealsClient.
-		Database(env.GetRequiredString("STATEMARKETDEALS_MONGO_DATABASE")).
+		Database(env.GetRequiredString(env.StatemarketdealsMongoDatabase)).
 		Collection("state_market_deals")
 
-	batchSize := env.GetInt("FILPLUS_INTEGRATION_BATCH_SIZE", 100)
-	providerCacheTTL := env.GetDuration("PROVIDER_CACHE_TTL", 24*time.Hour)
-	locationCacheTTL := env.GetDuration("LOCATION_CACHE_TTL", 24*time.Hour)
-	locationResolver := resolver.NewLocationResolver(os.Getenv("IPINFO_TOKEN"), providerCacheTTL)
+	batchSize := env.GetInt(env.FilplusIntegrationBatchSize, 100)
+	providerCacheTTL := env.GetDuration(env.ProviderCacheTTL, 24*time.Hour)
+	locationCacheTTL := env.GetDuration(env.LocationCacheTTL, 24*time.Hour)
+	locationResolver := resolver.NewLocationResolver(env.GetRequiredString(env.IPInfoToken), providerCacheTTL)
 	providerResolver, err := resolver.NewProviderResolver(
-		env.GetString("LOTUS_API_URL", "https://api.node.glif.io/rpc/v0"),
-		env.GetString("LOTUS_API_TOKEN", ""),
+		env.GetString(env.LotusAPIUrl, "https://api.node.glif.io/rpc/v0"),
+		env.GetString(env.LotusAPIToken, ""),
 		locationCacheTTL)
 	if err != nil {
 		panic(err)
@@ -169,7 +168,7 @@ func (f *FilPlusIntegration) RunOnce(ctx context.Context) error {
 					CID: document.Label,
 				},
 				CreatedAt: time.Now().UTC(),
-				Timeout:   env.GetDuration("FILPLUS_INTEGRATION_TASK_TIMEOUT", 15*time.Second),
+				Timeout:   env.GetDuration(env.FilplusIntegrationTaskTimeout, 15*time.Second),
 			})
 		}
 
@@ -194,7 +193,7 @@ func (f *FilPlusIntegration) RunOnce(ctx context.Context) error {
 				CID: document.PieceCID,
 			},
 			CreatedAt: time.Now().UTC(),
-			Timeout:   env.GetDuration("FILPLUS_INTEGRATION_TASK_TIMEOUT", 15*time.Second),
+			Timeout:   env.GetDuration(env.FilplusIntegrationTaskTimeout, 15*time.Second),
 		})
 	}
 

@@ -5,6 +5,7 @@ import (
 	"github.com/data-preservation-programs/RetrievalBot/pkg/net"
 	"github.com/data-preservation-programs/RetrievalBot/pkg/task"
 	"github.com/ipfs/go-cid"
+	_ "github.com/joho/godotenv/autoload"
 	"github.com/pkg/errors"
 )
 

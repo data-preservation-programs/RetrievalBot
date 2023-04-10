@@ -5,7 +5,7 @@ use (
 	./worker/graphsync
 	./worker/http
 	./worker/bitswap
-	./integration/stub
+	./integration/oneoff
 	./integration/statemarketdeals
 	./pkg
 	./integration/filplus

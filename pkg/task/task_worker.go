@@ -2,6 +2,7 @@ package task
 
 import (
 	"context"
+	"github.com/data-preservation-programs/RetrievalBot/pkg/env"
 	"github.com/google/uuid"
 	logging "github.com/ipfs/go-log/v2"
 	"github.com/pkg/errors"
@@ -9,7 +10,6 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 	"os"
-	"strconv"
 	"strings"
 	"time"
 )
@@ -28,15 +28,7 @@ type WorkerProcess struct {
 	acceptedCountries  []string
 	pollInterval       time.Duration
 	retrieverInfo      Retriever
-}
-
-func GetRequiredEnv(key string) string {
-	value := os.Getenv(key)
-	if value == "" {
-		logging.Logger("init").Panicf("%s not set", key)
-	}
-
-	return value
+	timeoutBuffer      time.Duration
 }
 
 func (t WorkerProcess) Close() {
@@ -50,61 +42,40 @@ func NewTaskWorkerProcess(
 	ctx context.Context,
 	module ModuleName,
 	worker Worker) (*WorkerProcess, error) {
-	taskClient, err := mongo.Connect(ctx, options.Client().ApplyURI(GetRequiredEnv("QUEUE_MONGO_URI")))
+	taskClient, err := mongo.Connect(ctx, options.Client().ApplyURI(env.GetRequiredString(env.QueueMongoURI)))
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to connect to mongo queueDB")
 	}
 
-	taskCollection := taskClient.Database(GetRequiredEnv("QUEUE_MONGO_DATABASE")).Collection("task_queue")
+	taskCollection := taskClient.Database(env.GetRequiredString(env.QueueMongoDatabase)).Collection("task_queue")
 
-	resultClient, err := mongo.Connect(ctx, options.Client().ApplyURI(GetRequiredEnv("RESULT_MONGO_URI")))
+	resultClient, err := mongo.Connect(ctx, options.Client().ApplyURI(env.GetRequiredString(env.ResultMongoURI)))
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to connect to mongo resultDB")
 	}
 
-	resultCollection := resultClient.Database(GetRequiredEnv("RESULT_MONGO_DATABASE")).Collection("task_result")
+	resultCollection := resultClient.Database(env.GetRequiredString(env.ResultMongoDatabase)).Collection("task_result")
 
 	acceptedContinents := make([]string, 0)
-	if os.Getenv("ACCEPTED_CONTINENTS") != "" {
+	if env.GetString(env.AcceptedContinents, "") != "" {
 		acceptedContinents = strings.Split(os.Getenv("ACCEPTED_CONTINENTS"), ",")
 	}
 
 	acceptedCountries := make([]string, 0)
-	if os.Getenv("ACCEPTED_COUNTRIES") != "" {
+	if env.GetString(env.AcceptedCountries, "") != "" {
 		acceptedCountries = strings.Split(os.Getenv("ACCEPTED_COUNTRIES"), ",")
 	}
 
-	pollIntervalString := os.Getenv("POLL_INTERVAL_SECOND")
-	if pollIntervalString == "" {
-		pollIntervalString = "10"
-	}
-
-	pollIntervalNumber, err := strconv.Atoi(pollIntervalString)
-	if err != nil {
-		return nil, errors.Wrap(err, "failed to parse poll interval")
-	}
-
-	pollInterval := time.Duration(pollIntervalNumber) * time.Second
-	latitudeString := os.Getenv("_LATITUDE")
-	longitudeString := os.Getenv("_LONGITUDE")
-	latitude, err := strconv.ParseFloat(latitudeString, 32)
-	if err != nil {
-		return nil, errors.Wrap(err, "failed to parse latitude")
-	}
-	longitude, err := strconv.ParseFloat(longitudeString, 32)
-	if err != nil {
-		return nil, errors.Wrap(err, "failed to parse longitude")
-	}
 	retrieverInfo := Retriever{
-		PublicIP:  GetRequiredEnv("_PUBLIC_IP"),
-		City:      GetRequiredEnv("_CITY"),
-		Region:    GetRequiredEnv("_REGION"),
-		Country:   os.Getenv("_COUNTRY"),
-		Continent: os.Getenv("_CONTINENT"),
-		ASN:       GetRequiredEnv("_ASN"),
-		Org:       GetRequiredEnv("_ORG"),
-		Latitude:  float32(latitude),
-		Longitude: float32(longitude),
+		PublicIP:  env.GetRequiredString(env.PublicIP),
+		City:      env.GetRequiredString(env.City),
+		Region:    env.GetRequiredString(env.Region),
+		Country:   env.GetRequiredString(env.Country),
+		Continent: env.GetRequiredString(env.Continent),
+		ASN:       env.GetRequiredString(env.ASN),
+		ISP:       env.GetRequiredString(env.ISP),
+		Latitude:  env.GetRequiredFloat32(env.Latitude),
+		Longitude: env.GetRequiredFloat32(env.Longitude),
 	}
 
 	id := uuid.New()
@@ -117,8 +88,9 @@ func NewTaskWorkerProcess(
 		module,
 		acceptedContinents,
 		acceptedCountries,
-		pollInterval,
+		env.GetDuration(env.TaskWorkerPollInterval, 10*time.Second),
 		retrieverInfo,
+		env.GetDuration(env.TaskWorkerTimeoutBuffer, 10*time.Second),
 	}, nil
 }
 
@@ -182,7 +154,7 @@ func (t WorkerProcess) Poll(ctx context.Context) error {
 	case <-ctx.Done():
 		//nolint:wrapcheck
 		return ctx.Err()
-	case <-time.After(found.Timeout):
+	case <-time.After(found.Timeout + t.timeoutBuffer):
 		retrievalResult = *NewErrorRetrievalResult(Timeout, errors.Errorf("timed out after %s", found.Timeout))
 	case r := <-resultChan:
 		retrievalResult = r

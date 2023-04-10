@@ -52,7 +52,7 @@ func NewProcessManager() (*ProcessManager, error) {
 	logger := logging.Logger("process-manager")
 	// Setup all worker
 	concurrency := make(map[string]int)
-	modules := strings.Split(env.GetRequiredString("MODULES"), ",")
+	modules := strings.Split(env.GetRequiredString(env.ProcessModules), ",")
 	for _, module := range modules {
 		path, err := exec.LookPath(module)
 		if err != nil {
@@ -62,7 +62,7 @@ func NewProcessManager() (*ProcessManager, error) {
 		moduleName := strings.ToUpper(strings.Split(filepath.Base(path), ".")[0])
 		logger.Infof("Found module %s at %s. Looking for CONCURRENCY_%s now.", module, path, moduleName)
 
-		concurrencyNumber := env.GetInt("CONCURRENCY_"+moduleName, 1)
+		concurrencyNumber := env.GetInt(env.Key("CONCURRENCY_"+moduleName), 1)
 		concurrency[path] = concurrencyNumber
 	}
 
@@ -74,16 +74,16 @@ func NewProcessManager() (*ProcessManager, error) {
 
 	logger.With("ipinfo", ipInfo).Infof("Public IP info retrieved")
 
-	env.MustSet("_PUBLIC_IP", ipInfo.IP)
-	env.MustSet("_CITY", ipInfo.City)
-	env.MustSet("_REGION", ipInfo.Region)
-	env.MustSet("_COUNTRY", ipInfo.Country)
-	env.MustSet("_CONTINENT", ipInfo.Continent)
-	env.MustSet("_ASN", ipInfo.ASN)
-	env.MustSet("_ISP", ipInfo.ISP)
-	env.MustSetAny("_LATITUDE", ipInfo.Latitude)
-	env.MustSetAny("_LONGITUDE", ipInfo.Longitude)
-	errorInterval := env.GetDuration("ERROR_INTERVAL", 5*time.Second)
+	env.MustSet(env.PublicIP, ipInfo.IP)
+	env.MustSet(env.City, ipInfo.City)
+	env.MustSet(env.Region, ipInfo.Region)
+	env.MustSet(env.Country, ipInfo.Country)
+	env.MustSet(env.Continent, ipInfo.Continent)
+	env.MustSet(env.ASN, ipInfo.ASN)
+	env.MustSet(env.ISP, ipInfo.ISP)
+	env.MustSetAny(env.Latitude, ipInfo.Latitude)
+	env.MustSetAny(env.Longitude, ipInfo.Longitude)
+	errorInterval := env.GetDuration(env.ProcessErrorInterval, 5*time.Second)
 
 	return &ProcessManager{
 		concurrency,

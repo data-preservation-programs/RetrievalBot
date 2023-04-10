@@ -12,6 +12,7 @@ import (
 	"github.com/ipfs/go-datastore/sync"
 	logging "github.com/ipfs/go-log/v2"
 	cidlink "github.com/ipld/go-ipld-prime/linking/cid"
+	"github.com/ipld/go-ipld-prime/storage/memstore"
 	selectorparse "github.com/ipld/go-ipld-prime/traversal/selector/parse"
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/peer"
@@ -51,7 +52,7 @@ func (c GraphsyncClient) Retrieve(
 	parent context.Context,
 	target peer.AddrInfo,
 	cid cid.Cid) (*task.RetrievalResult, error) {
-	logger := logging.Logger("graphsync-client").With("cid", cid, "target", target)
+	logger := logging.Logger("graphsync_client").With("cid", cid, "target", target)
 	ctx, cancel := context.WithTimeout(parent, c.timeout)
 	defer cancel()
 	datastore := sync.MutexWrap(datastore.NewMapDatastore())
@@ -64,7 +65,7 @@ func (c GraphsyncClient) Retrieve(
 	}
 	err = retrievalClient.Connect(ctx, target)
 	if err != nil {
-		return task.NewErrorRetrievalResult(task.CannotConnect, err), nil
+		return task.NewErrorRetrievalResultWithErrorResolution(task.CannotConnect, err), nil
 	}
 
 	shutDown := make(chan struct{})
@@ -78,16 +79,22 @@ func (c GraphsyncClient) Retrieve(
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to create retrieval params")
 	}
+
+	linkSystem := cidlink.DefaultLinkSystem()
+	storage := &memstore.Store{}
+	linkSystem.SetWriteStorage(storage)
+	linkSystem.SetReadStorage(storage)
+
 	stats, err := retrievalClient.RetrieveFromPeer(
 		ctx,
-		cidlink.DefaultLinkSystem(),
+		linkSystem,
 		target.ID,
 		&retrievaltypes.DealProposal{
 			PayloadCID: cid,
 			ID:         retrievaltypes.DealID(c.counter.Next()),
 			Params:     params,
 		},
-		selectorparse.CommonSelector_MatchPoint,
+		selector,
 		func(event datatransfer.Event, channelState datatransfer.ChannelState) {
 			logger.With("event", event, "channelState", channelState).Debug("received data transfer event")
 		},
@@ -95,7 +102,8 @@ func (c GraphsyncClient) Retrieve(
 	)
 
 	if err != nil {
-		return task.NewErrorRetrievalResult(task.RetrievalFailure, err), nil
+		logger.Info(err)
+		return task.NewErrorRetrievalResultWithErrorResolution(task.RetrievalFailure, err), nil
 	}
 
 	return task.NewSuccessfulRetrievalResult(stats.TimeToFirstByte, int64(stats.Size), stats.Duration), nil

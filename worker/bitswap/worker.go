@@ -9,6 +9,7 @@ import (
 	"github.com/data-preservation-programs/RetrievalBot/pkg/task"
 	"github.com/ipfs/go-cid"
 	logging "github.com/ipfs/go-log/v2"
+	_ "github.com/joho/godotenv/autoload"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/multiformats/go-multiaddr"
 	"github.com/pkg/errors"
@@ -29,7 +30,7 @@ func (e Worker) DoWork(tsk task.Task) (*task.RetrievalResult, error) {
 	client := net.NewBitswapClient(host, tsk.Timeout)
 
 	// First, check if the provider is using boost
-	protocolProvider := resolver.NewProtocolProvider(host, tsk.Timeout)
+	protocolProvider := resolver.ProtocolResolver(host, tsk.Timeout)
 	addrInfo, err := tsk.Provider.GetPeerAddr()
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to get peer addr")
@@ -65,7 +66,7 @@ func (e Worker) DoWork(tsk task.Task) (*task.RetrievalResult, error) {
 
 		remain, last := multiaddr.SplitLast(addr)
 		if last.Protocol().Code == multiaddr.P_P2P {
-			newPeerID, err := peer.IDFromBytes(last.Bytes())
+			newPeerID, err := peer.IDFromBytes(last.RawValue())
 			if err != nil {
 				return task.NewErrorRetrievalResult(task.ProtocolNotSupported, err), nil
 			}
