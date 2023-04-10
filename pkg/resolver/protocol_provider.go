@@ -24,7 +24,7 @@ type ProtocolProvider struct {
 	timeout time.Duration
 }
 
-func NewProtocolProvider(host host.Host, timeout time.Duration) ProtocolProvider {
+func ProtocolResolver(host host.Host, timeout time.Duration) ProtocolProvider {
 	return ProtocolProvider{
 		host:    host,
 		timeout: timeout,

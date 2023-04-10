@@ -9,6 +9,7 @@ import (
 	"github.com/data-preservation-programs/RetrievalBot/pkg/resolver"
 	"github.com/data-preservation-programs/RetrievalBot/pkg/task"
 	"github.com/ipfs/go-cid"
+	_ "github.com/joho/godotenv/autoload"
 	"github.com/multiformats/go-multiaddr"
 	manet "github.com/multiformats/go-multiaddr/net"
 	"github.com/pkg/errors"
@@ -87,7 +88,7 @@ func (e Worker) DoWork(tsk task.Task) (*task.RetrievalResult, error) {
 	}
 
 	// First, check if the provider is using boost
-	protocolProvider := resolver.NewProtocolProvider(host, tsk.Timeout)
+	protocolProvider := resolver.ProtocolResolver(host, tsk.Timeout)
 	addrInfo, err := tsk.Provider.GetPeerAddr()
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to get peer addr")

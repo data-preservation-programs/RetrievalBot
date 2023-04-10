@@ -4,6 +4,7 @@ import (
 	"context"
 	"github.com/data-preservation-programs/RetrievalBot/pkg/task"
 	"github.com/ipfs/go-cid"
+	logging "github.com/ipfs/go-log/v2"
 	"github.com/pkg/errors"
 	"io"
 	"net/http"
@@ -26,6 +27,7 @@ func (c HTTPClient) RetrievePiece(
 	host string,
 	cid cid.Cid,
 	length int64) (*task.RetrievalResult, error) {
+	logger := logging.Logger("http_client").With("cid", cid, "host", host)
 	urlStr := host
 	if urlStr[len(urlStr)-1] != '/' {
 		urlStr += "/"
@@ -50,25 +52,30 @@ func (c HTTPClient) RetrievePiece(
 	}
 
 	startTime := time.Now()
+	logger.With("URL", fileURL).Info("Sending request to host")
 	resp, err := client.Do(request)
 	if err != nil {
-		return task.NewErrorRetrievalResult(task.CannotConnect, err), nil
+		return task.NewErrorRetrievalResultWithErrorResolution(task.CannotConnect, err), nil
 	}
 
 	fbTime := time.Since(startTime)
 
 	defer resp.Body.Close()
+	logger.With("status", resp.Status, "header", resp.Header).Info("Received response from host")
 	if resp.StatusCode == http.StatusNotFound {
-		return task.NewErrorRetrievalResult(task.NotFound, errors.Errorf("status code: %d", resp.StatusCode)), nil
+		return task.NewErrorRetrievalResultWithErrorResolution(
+			task.NotFound, errors.Errorf("status code: %d", resp.StatusCode)), nil
 	}
 
 	if resp.StatusCode > 299 {
-		return task.NewErrorRetrievalResult(task.RetrievalFailure, errors.Errorf("status code: %d", resp.StatusCode)), nil
+		return task.NewErrorRetrievalResultWithErrorResolution(
+			task.RetrievalFailure, errors.Errorf("status code: %d", resp.StatusCode)), nil
 	}
 
 	downloaded, err := io.CopyN(io.Discard, resp.Body, length)
 	if err != nil {
-		return task.NewErrorRetrievalResult(task.RetrievalFailure, err), nil
+		logger.Info(err)
+		return task.NewErrorRetrievalResultWithErrorResolution(task.RetrievalFailure, err), nil
 	}
 
 	elapsed := time.Since(startTime)

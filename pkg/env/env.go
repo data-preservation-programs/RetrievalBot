@@ -8,8 +8,44 @@ import (
 	"time"
 )
 
-func GetString(key, defaultValue string) string {
-	value := os.Getenv(key)
+type Key string
+
+//nolint:gosec
+const (
+	ProcessModules                Key = "PROCESS_MODULES"
+	ProcessErrorInterval          Key = "PROCESS_ERROR_INTERVAL"
+	TaskWorkerPollInterval        Key = "TASK_WORKER_POLL_INTERVAL"
+	TaskWorkerTimeoutBuffer       Key = "TASK_WORKER_TIMEOUT_BUFFER"
+	LotusAPIUrl                   Key = "LOTUS_API_URL"
+	LotusAPIToken                 Key = "LOTUS_API_TOKEN"
+	QueueMongoURI                 Key = "QUEUE_MONGO_URI"
+	QueueMongoDatabase            Key = "QUEUE_MONGO_DATABASE"
+	ResultMongoURI                Key = "RESULT_MONGO_URI"
+	ResultMongoDatabase           Key = "RESULT_MONGO_DATABASE"
+	FilplusIntegrationBatchSize   Key = "FILPLUS_INTEGRATION_BATCH_SIZE"
+	FilplusIntegrationTaskTimeout Key = "FILPLUS_INTEGRATION_TASK_TIMEOUT"
+	StatemarketdealsMongoURI      Key = "STATEMARKETDEALS_MONGO_URI"
+	StatemarketdealsMongoDatabase Key = "STATEMARKETDEALS_MONGO_DATABASE"
+	StatemarketdealsBatchSize     Key = "STATEMARKETDEALS_BATCH_SIZE"
+	StatemarketdealsInterval      Key = "STATEMARKETDEALS_INTERVAL"
+	PublicIP                      Key = "_PUBLIC_IP"
+	City                          Key = "_CITY"
+	Region                        Key = "_REGION"
+	Country                       Key = "_COUNTRY"
+	Continent                     Key = "_CONTINENT"
+	ASN                           Key = "_ASN"
+	ISP                           Key = "_ISP"
+	Latitude                      Key = "_LATITUDE"
+	Longitude                     Key = "_LONGITUDE"
+	ProviderCacheTTL              Key = "PROVIDER_CACHE_TTL"
+	LocationCacheTTL              Key = "LOCATION_CACHE_TTL"
+	AcceptedContinents            Key = "ACCEPTED_CONTINENTS"
+	AcceptedCountries             Key = "ACCEPTED_COUNTRIES"
+	IPInfoToken                   Key = "IPINFO_TOKEN"
+)
+
+func GetString(key Key, defaultValue string) string {
+	value := os.Getenv(string(key))
 	if value == "" {
 		return defaultValue
 	}
@@ -17,8 +53,8 @@ func GetString(key, defaultValue string) string {
 	return value
 }
 
-func GetInt(key string, defaultValue int) int {
-	value := os.Getenv(key)
+func GetInt(key Key, defaultValue int) int {
+	value := os.Getenv(string(key))
 	if value == "" {
 		return defaultValue
 	}
@@ -32,8 +68,8 @@ func GetInt(key string, defaultValue int) int {
 	return intValue
 }
 
-func GetRequiredInt(key string) int {
-	value := os.Getenv(key)
+func GetRequiredInt(key Key) int {
+	value := os.Getenv(string(key))
 	if value == "" {
 		logging.Logger("env").Panicf("%s not set", key)
 	}
@@ -46,8 +82,8 @@ func GetRequiredInt(key string) int {
 	return intValue
 }
 
-func GetRequiredString(key string) string {
-	value := os.Getenv(key)
+func GetRequiredString(key Key) string {
+	value := os.Getenv(string(key))
 	if value == "" {
 		logging.Logger("env").Panicf("%s not set", key)
 	}
@@ -55,7 +91,17 @@ func GetRequiredString(key string) string {
 	return value
 }
 
-func GetRequiredDuration(key string) time.Duration {
+func GetRequiredFloat32(key Key) float32 {
+	value := GetRequiredString(key)
+	floatValue, err := strconv.ParseFloat(value, 32)
+	if err != nil {
+		logging.Logger("env").Panicf("failed to parse %s as float32", key)
+	}
+
+	return float32(floatValue)
+}
+
+func GetRequiredDuration(key Key) time.Duration {
 	value := GetRequiredString(key)
 	duration, err := time.ParseDuration(value)
 	if err != nil {
@@ -65,8 +111,8 @@ func GetRequiredDuration(key string) time.Duration {
 	return duration
 }
 
-func GetDuration(key string, defaultValue time.Duration) time.Duration {
-	value := os.Getenv(key)
+func GetDuration(key Key, defaultValue time.Duration) time.Duration {
+	value := os.Getenv(string(key))
 	if value == "" {
 		return defaultValue
 	}
@@ -74,16 +120,16 @@ func GetDuration(key string, defaultValue time.Duration) time.Duration {
 	return GetRequiredDuration(key)
 }
 
-func MustSet(key, value string) {
-	err := os.Setenv(key, value)
+func MustSet(key Key, value string) {
+	err := os.Setenv(string(key), value)
 	if err != nil {
 		logging.Logger("env").Panicf("failed to set %s to %s", key, value)
 	}
 }
 
-func MustSetAny(key string, value interface{}) {
+func MustSetAny(key Key, value interface{}) {
 	str := fmt.Sprintf("%v", value)
-	err := os.Setenv(key, str)
+	err := os.Setenv(string(key), str)
 	if err != nil {
 		logging.Logger("env").Panicf("failed to set %s to %s", key, value)
 	}

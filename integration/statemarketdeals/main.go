@@ -48,7 +48,7 @@ var logger = logging.Logger("state-market-deals")
 
 func main() {
 	ctx := context.Background()
-	interval := env.GetDuration("STATEMARKETDEALS_INTERVAL", 6*time.Hour)
+	interval := env.GetDuration(env.StatemarketdealsInterval, 6*time.Hour)
 	for {
 		err := refresh(ctx)
 		if err != nil {
@@ -61,15 +61,15 @@ func main() {
 }
 
 func refresh(ctx context.Context) error {
-	batchSize := env.GetInt("STATEMARKETDEALS_BATCH_SIZE", 1000)
-	client, err := mongo.Connect(ctx, options.Client().ApplyURI(env.GetRequiredString("STATEMARKETDEALS_MONGO_URI")))
+	batchSize := env.GetInt(env.StatemarketdealsBatchSize, 1000)
+	client, err := mongo.Connect(ctx, options.Client().ApplyURI(env.GetRequiredString(env.StatemarketdealsMongoURI)))
 	if err != nil {
 		return errors.Wrap(err, "failed to connect to mongo")
 	}
 
 	//nolint:errcheck
 	defer client.Disconnect(ctx)
-	collection := client.Database(env.GetRequiredString("STATEMARKETDEALS_MONGO_DATABASE")).
+	collection := client.Database(env.GetRequiredString(env.StatemarketdealsMongoDatabase)).
 		Collection("state_market_deals")
 
 	logger.Info("getting deal ids from mongo")
