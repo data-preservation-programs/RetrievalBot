@@ -43,5 +43,6 @@ This integration push a single workitem into the queue with command line argumen
 
 ## Get started
 1. Setup a mongodb server
-2. Run the software natively or via a docker with environment variables. Please see [.env.example](./.env.example) to find all relevant keys required.
-Do not run `StubWorker.exe`, `GraphsyncWorker.exe`, `HttpWorker.exe`, `BitswapWorker.exe` directly as they are invoked by `RetrievalWorker.exe` to offer sandboxed environment.
+2. Run the software natively or via a docker with environment variables. Please see [.env.example](./.env.example) to find all relevant keys required. 
+* Do not run `StubWorker.exe`, `GraphsyncWorker.exe`, `HttpWorker.exe`, `BitswapWorker.exe` directly as they are invoked by `RetrievalWorker.exe` to offer sandboxed environment.
+* For a mininal Filplus validation, `RetrievalWorker.exe`, `StateMarketDeals.exe` and `FilPlusIntegration.exe` needs to be run.
