@@ -42,13 +42,13 @@ func resolveError(err error) ErrorCode {
 	}
 
 	logger := logging.Logger("error-resolution")
-	logger.With("err", err).Debug("error resolution debug trace")
+	innerError := err
 	for {
-		innerError := errors.Unwrap(err)
+		logger.With("innerError", innerError).Debug("error resolution trace")
+		innerError = errors.Unwrap(innerError)
 		if innerError == nil {
 			break
 		}
-		logger.With("innerError", innerError).Debug("error resolution debug trace")
 	}
 
 	return ErrorCodeNone
