@@ -121,7 +121,7 @@ func (c BitswapClient) Retrieve(
 	logger.Info("Connecting to target peer...")
 	err := c.host.Connect(connectContext, target)
 	if err != nil {
-		logger.With("err", err).Error("Failed to connect to target peer")
+		logger.With("err", err).Info("Failed to connect to target peer")
 		return task.NewErrorRetrievalResultWithErrorResolution(task.CannotConnect, err), nil
 	}
 
