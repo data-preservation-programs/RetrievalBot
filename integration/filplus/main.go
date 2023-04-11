@@ -264,17 +264,23 @@ func (f *FilPlusIntegration) RunOnce(ctx context.Context) error {
 		})
 	}
 
-	insertTasksResult, err := f.taskCollection.InsertMany(ctx, tasks)
-	if err != nil {
-		return errors.Wrap(err, "failed to insert tasks")
+	if len(tasks) > 0 {
+		_, err = f.taskCollection.InsertMany(ctx, tasks)
+		if err != nil {
+			return errors.Wrap(err, "failed to insert tasks")
+		}
 	}
 
-	insertResultsResult, err := f.resultCollection.InsertMany(ctx, results)
-	if err != nil {
-		return errors.Wrap(err, "failed to insert results")
+	logger.With("count", len(tasks)).Info("inserted tasks")
+
+	if len(results) > 0 {
+		_, err = f.resultCollection.InsertMany(ctx, results)
+		if err != nil {
+			return errors.Wrap(err, "failed to insert results")
+		}
 	}
 
-	logger.With("count", len(insertTasksResult.InsertedIDs)).Info("inserted tasks")
-	logger.With("count", len(insertResultsResult.InsertedIDs)).Info("inserted results")
+	logger.With("count", len(results)).Info("inserted results")
+
 	return nil
 }
