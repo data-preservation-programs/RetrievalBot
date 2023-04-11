@@ -5,6 +5,7 @@ import (
 	"github.com/data-preservation-programs/RetrievalBot/pkg/convert"
 	"github.com/data-preservation-programs/RetrievalBot/pkg/env"
 	"github.com/data-preservation-programs/RetrievalBot/pkg/model"
+	"github.com/data-preservation-programs/RetrievalBot/pkg/requesterror"
 	"github.com/data-preservation-programs/RetrievalBot/pkg/resolver"
 	"github.com/data-preservation-programs/RetrievalBot/pkg/task"
 	"github.com/ipfs/go-cid"
@@ -35,10 +36,12 @@ func main() {
 type FilPlusIntegration struct {
 	taskCollection        *mongo.Collection
 	marketDealsCollection *mongo.Collection
+	resultCollection      *mongo.Collection
 	batchSize             int
 	requester             string
 	locationResolver      resolver.LocationResolver
 	providerResolver      resolver.ProviderResolver
+	ipInfo                resolver.IPInfo
 }
 
 func NewFilPlusIntegration() *FilPlusIntegration {
@@ -60,6 +63,14 @@ func NewFilPlusIntegration() *FilPlusIntegration {
 		Database(env.GetRequiredString(env.StatemarketdealsMongoDatabase)).
 		Collection("state_market_deals")
 
+	resultClient, err := mongo.Connect(ctx, options.Client().ApplyURI(env.GetRequiredString(env.ResultMongoURI)))
+	if err != nil {
+		panic(err)
+	}
+	resultCollection := resultClient.
+		Database(env.GetRequiredString(env.ResultMongoDatabase)).
+		Collection("task_result")
+
 	batchSize := env.GetInt(env.FilplusIntegrationBatchSize, 100)
 	providerCacheTTL := env.GetDuration(env.ProviderCacheTTL, 24*time.Hour)
 	locationCacheTTL := env.GetDuration(env.LocationCacheTTL, 24*time.Hour)
@@ -72,6 +83,14 @@ func NewFilPlusIntegration() *FilPlusIntegration {
 		panic(err)
 	}
 
+	// Check public IP address
+	ipInfo, err := resolver.GetPublicIPInfo(context.TODO(), "", "")
+	if err != nil {
+		panic(err)
+	}
+
+	logger.With("ipinfo", ipInfo).Infof("Public IP info retrieved")
+
 	return &FilPlusIntegration{
 		taskCollection:        taskCollection,
 		marketDealsCollection: marketDealsCollection,
@@ -79,6 +98,8 @@ func NewFilPlusIntegration() *FilPlusIntegration {
 		requester:             "filplus",
 		locationResolver:      locationResolver,
 		providerResolver:      *providerResolver,
+		resultCollection:      resultCollection,
+		ipInfo:                ipInfo,
 	}
 }
 
@@ -116,6 +137,7 @@ func (f *FilPlusIntegration) RunOnce(ctx context.Context) error {
 	}
 
 	tasks := make([]interface{}, 0)
+	results := make([]interface{}, 0)
 	// Insert the documents into task queue
 	for _, document := range documents {
 		// If the label is a correct CID, assume it is the payload CID and try GraphSync and Bitswap retrieval
@@ -133,17 +155,62 @@ func (f *FilPlusIntegration) RunOnce(ctx context.Context) error {
 			continue
 		}
 
-		if err != nil {
-			logger.With("provider", document.Provider, "deal_id", document.DealID).
-				Error("failed to parse multiaddrs")
-			continue
-		}
-
 		location, err := f.locationResolver.ResolveMultiaddrsBytes(ctx, providerInfo.Multiaddrs)
 		if err != nil {
-			logger.With("provider", document.Provider, "deal_id", document.DealID).
-				Error("failed to resolve provider location")
-			continue
+			if errors.Is(err, requesterror.BogonIPError{}) ||
+				errors.Is(err, requesterror.InvalidIPError{}) ||
+				errors.Is(err, requesterror.HostLookupError{}) ||
+				errors.Is(err, requesterror.NoValidMultiAddrError{}) {
+				results = append(results, task.Result{
+					Task: task.Task{
+						Requester: f.requester,
+						Module:    task.GraphSync,
+						Metadata: map[string]string{
+							"deal_id":       strconv.Itoa(int(document.DealID)),
+							"client":        document.Client,
+							"assume_label":  "true",
+							"retrieve_type": "root_block"},
+						Provider: task.Provider{
+							ID:         document.Provider,
+							PeerID:     providerInfo.PeerId,
+							Multiaddrs: convert.MultiaddrsBytesToStringArraySkippingError(providerInfo.Multiaddrs),
+							City:       location.City,
+							Region:     location.Region,
+							Country:    location.Country,
+							Continent:  location.Continent,
+						},
+						Content: task.Content{
+							CID: document.Label,
+						},
+						CreatedAt: time.Now().UTC(),
+						Timeout:   env.GetDuration(env.FilplusIntegrationTaskTimeout, 15*time.Second)},
+					Retriever: task.Retriever{
+						PublicIP:  f.ipInfo.IP,
+						City:      f.ipInfo.City,
+						Region:    f.ipInfo.Region,
+						Country:   f.ipInfo.Country,
+						Continent: f.ipInfo.Continent,
+						ASN:       f.ipInfo.ASN,
+						ISP:       f.ipInfo.ISP,
+						Latitude:  f.ipInfo.Latitude,
+						Longitude: f.ipInfo.Longitude,
+					},
+					Result: task.RetrievalResult{
+						Success:      false,
+						ErrorCode:    task.NoValidMultiAddrs,
+						ErrorMessage: err.Error(),
+						TTFB:         0,
+						Speed:        0,
+						Duration:     0,
+						Downloaded:   0,
+					},
+					CreatedAt: time.Now().UTC(),
+				})
+			} else {
+				logger.With("provider", document.Provider, "deal_id", document.DealID).
+					Error("failed to resolve provider location")
+				continue
+			}
 		}
 
 		for _, module := range []task.ModuleName{task.GraphSync, task.Bitswap} {
@@ -197,11 +264,17 @@ func (f *FilPlusIntegration) RunOnce(ctx context.Context) error {
 		})
 	}
 
-	insertResult, err := f.taskCollection.InsertMany(ctx, tasks)
+	insertTasksResult, err := f.taskCollection.InsertMany(ctx, tasks)
 	if err != nil {
 		return errors.Wrap(err, "failed to insert tasks")
 	}
 
-	logger.Infof("inserted %d tasks", len(insertResult.InsertedIDs))
+	insertResultsResult, err := f.resultCollection.InsertMany(ctx, results)
+	if err != nil {
+		return errors.Wrap(err, "failed to insert results")
+	}
+
+	logger.With("count", len(insertTasksResult.InsertedIDs)).Info("inserted tasks")
+	logger.With("count", len(insertResultsResult.InsertedIDs)).Info("inserted results")
 	return nil
 }

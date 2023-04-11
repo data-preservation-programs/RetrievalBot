@@ -96,6 +96,7 @@ func GetPublicIPInfo(ctx context.Context, ip string, token string) (IPInfo, erro
 		ipInfo.Continent = continent
 	} else {
 		logger.Error("Unknown country: " + ipInfo.Country)
+		return IPInfo{}, errors.New("unknown country: " + ipInfo.Country)
 	}
 
 	logger.Debugf("Got IP info for %s: %+v", ip, ipInfo)

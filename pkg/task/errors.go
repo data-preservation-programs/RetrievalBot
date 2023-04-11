@@ -10,6 +10,7 @@ type ErrorCode string
 
 const (
 	ErrorCodeNone           ErrorCode = ""
+	NoValidMultiAddrs       ErrorCode = "no_valid_multiaddrs"
 	CannotConnect           ErrorCode = "cannot_connect"
 	NotFound                ErrorCode = "not_found"
 	RetrievalFailure        ErrorCode = "retrieval_failure"
