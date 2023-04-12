@@ -131,7 +131,7 @@ func (l LocationResolver) ResolveIP(ctx context.Context, ip net.IP) (IPInfo, err
 	}
 
 	if ipInfo.Bogon {
-		return IPInfo{}, &requesterror.BogonIPError{IP: ipString}
+		return IPInfo{}, requesterror.BogonIPError{IP: ipString}
 	}
 
 	l.cache.Set(ipString, ipInfo, ttlcache.DefaultTTL)
@@ -141,7 +141,7 @@ func (l LocationResolver) ResolveIP(ctx context.Context, ip net.IP) (IPInfo, err
 func (l LocationResolver) ResolveIPStr(ctx context.Context, ip string) (IPInfo, error) {
 	parsed := net.ParseIP(ip)
 	if parsed == nil {
-		return IPInfo{}, &requesterror.InvalidIPError{IP: ip}
+		return IPInfo{}, requesterror.InvalidIPError{IP: ip}
 	}
 
 	return l.ResolveIP(ctx, parsed)
@@ -156,7 +156,7 @@ func (l LocationResolver) ResolveMultiaddr(ctx context.Context, addr multiaddr.M
 	if isHostName {
 		ips, err := net.LookupIP(host)
 		if err != nil {
-			return IPInfo{}, &requesterror.HostLookupError{Host: host, Err: err}
+			return IPInfo{}, requesterror.HostLookupError{Host: host, Err: err}
 		}
 
 		host = ips[0].String()
@@ -187,7 +187,7 @@ func (l LocationResolver) ResolveMultiaddrs(ctx context.Context, addrs []multiad
 		return IPInfo{}, lastErr
 	}
 
-	return IPInfo{}, &requesterror.NoValidMultiAddrError{}
+	return IPInfo{}, requesterror.NoValidMultiAddrError{}
 }
 
 type IsHostName = bool

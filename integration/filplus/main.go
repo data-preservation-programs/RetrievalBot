@@ -157,10 +157,10 @@ func (f *FilPlusIntegration) RunOnce(ctx context.Context) error {
 
 		location, err := f.locationResolver.ResolveMultiaddrsBytes(ctx, providerInfo.Multiaddrs)
 		if err != nil {
-			if errors.Is(err, requesterror.BogonIPError{}) ||
-				errors.Is(err, requesterror.InvalidIPError{}) ||
-				errors.Is(err, requesterror.HostLookupError{}) ||
-				errors.Is(err, requesterror.NoValidMultiAddrError{}) {
+			if errors.As(err, &requesterror.BogonIPError{}) ||
+				errors.As(err, &requesterror.InvalidIPError{}) ||
+				errors.As(err, &requesterror.HostLookupError{}) ||
+				errors.As(err, &requesterror.NoValidMultiAddrError{}) {
 				results = append(results, task.Result{
 					Task: task.Task{
 						Requester: f.requester,

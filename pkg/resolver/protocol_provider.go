@@ -47,7 +47,7 @@ func (p ProtocolProvider) getLibp2pProtocols(
 	defer cancel()
 	p.host.Peerstore().AddAddrs(minerInfo.ID, minerInfo.Addrs, peerstore.PermanentAddrTTL)
 	if err := p.host.Connect(ctx, minerInfo); err != nil {
-		return nil, &requesterror.CannotConnectError{
+		return nil, requesterror.CannotConnectError{
 			PeerID: minerInfo.ID,
 			Err:    err,
 		}
@@ -55,7 +55,7 @@ func (p ProtocolProvider) getLibp2pProtocols(
 
 	protocols, err := p.host.Peerstore().GetProtocols(minerInfo.ID)
 	if err != nil {
-		return nil, &requesterror.StreamError{
+		return nil, requesterror.StreamError{
 			Err: err,
 		}
 	}
@@ -71,7 +71,7 @@ func (p ProtocolProvider) GetRetrievalProtocols(
 	defer cancel()
 
 	if err := p.host.Connect(ctx, minerInfo); err != nil {
-		return nil, &requesterror.CannotConnectError{
+		return nil, requesterror.CannotConnectError{
 			PeerID: minerInfo.ID,
 			Err:    err,
 		}
@@ -92,7 +92,7 @@ func (p ProtocolProvider) GetRetrievalProtocols(
 	}
 
 	if err != nil {
-		return nil, &requesterror.StreamError{
+		return nil, requesterror.StreamError{
 			Err: err,
 		}
 	}
@@ -107,7 +107,7 @@ func (p ProtocolProvider) GetRetrievalProtocols(
 	queryResponse := new(model.QueryResponse)
 	err = cborutil.ReadCborRPC(stream, queryResponse)
 	if err != nil {
-		return nil, &requesterror.StreamError{
+		return nil, requesterror.StreamError{
 			Err: err,
 		}
 	}

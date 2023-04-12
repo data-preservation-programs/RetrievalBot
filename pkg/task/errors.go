@@ -3,7 +3,7 @@ package task
 import (
 	"context"
 	"errors"
-	logging "github.com/ipfs/go-log/v2"
+	"github.com/data-preservation-programs/RetrievalBot/pkg/requesterror"
 )
 
 type ErrorCode string
@@ -37,18 +37,23 @@ func resolveError(err error) ErrorCode {
 		return Timeout
 	}
 
-	if hasErrorMessage(err, "deal rejected: Price per byte too low") {
-		return DealRejectedPriceTooLow
+	if errors.As(err, &requesterror.CannotConnectError{}) {
+		return CannotConnect
 	}
 
-	logger := logging.Logger("error-resolution")
-	innerError := err
-	for {
-		logger.With("innerError", innerError).Debug("error resolution trace")
-		innerError = errors.Unwrap(innerError)
-		if innerError == nil {
-			break
-		}
+	if errors.As(err, &requesterror.InvalidIPError{}) ||
+		errors.As(err, &requesterror.BogonIPError{}) ||
+		errors.As(err, &requesterror.NoValidMultiAddrError{}) ||
+		errors.As(err, &requesterror.HostLookupError{}) {
+		return NoValidMultiAddrs
+	}
+
+	if errors.As(err, &requesterror.StreamError{}) {
+		return RetrievalFailure
+	}
+
+	if hasErrorMessage(err, "deal rejected: Price per byte too low") {
+		return DealRejectedPriceTooLow
 	}
 
 	return ErrorCodeNone
