@@ -142,8 +142,13 @@ func (t WorkerProcess) Poll(ctx context.Context) error {
 	go func() {
 		result, err := t.worker.DoWork(*found)
 		if err != nil {
-			logger.With("error", err).Error("failed to do work")
-			errChan <- err
+			errResult := resolveErrorResult(err)
+			if errResult != nil {
+				resultChan <- *errResult
+			} else {
+				logger.With("error", err).Error("failed to do work")
+				errChan <- err
+			}
 		} else {
 			resultChan <- *result
 		}
@@ -158,7 +163,7 @@ func (t WorkerProcess) Poll(ctx context.Context) error {
 		retrievalResult = *NewErrorRetrievalResult(Timeout, errors.Errorf("timed out after %s", found.Timeout))
 	case r := <-resultChan:
 		retrievalResult = r
-	case err := <-errChan:
+	case err = <-errChan:
 		return err
 	}
 

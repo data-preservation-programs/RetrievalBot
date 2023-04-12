@@ -4,6 +4,7 @@ import (
 	"context"
 	"github.com/data-preservation-programs/RetrievalBot/pkg/env"
 	"github.com/data-preservation-programs/RetrievalBot/pkg/resolver"
+	"github.com/google/uuid"
 	logging "github.com/ipfs/go-log/v2"
 	"github.com/pkg/errors"
 	"os"
@@ -83,6 +84,11 @@ func NewProcessManager() (*ProcessManager, error) {
 	env.MustSet(env.ISP, ipInfo.ISP)
 	env.MustSetAny(env.Latitude, ipInfo.Latitude)
 	env.MustSetAny(env.Longitude, ipInfo.Longitude)
+	if os.Getenv("GOLOG_LOG_LABELS") != "" {
+		env.MustSetAny("GOLOG_LOG_LABELS", os.Getenv("GOLOG_LOG_LABELS")+",correlation_id="+uuid.New().String())
+	} else {
+		env.MustSetAny("GOLOG_LOG_LABELS", "correlation_id="+uuid.New().String())
+	}
 	errorInterval := env.GetDuration(env.ProcessErrorInterval, 5*time.Second)
 
 	return &ProcessManager{
