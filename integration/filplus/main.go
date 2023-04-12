@@ -184,6 +184,8 @@ func (f *FilPlusIntegration) RunOnce(ctx context.Context) error {
 		return errors.Wrap(err, "failed to count tasks")
 	}
 
+	logger.With("count", count).Info("Current number of tasks in the queue")
+
 	if count >= 3*int64(f.batchSize) {
 		logger.Infof("task queue already have %d tasks, do nothing", f.batchSize*3)
 		return nil
