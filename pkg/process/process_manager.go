@@ -28,6 +28,11 @@ func (p ProcessManager) Run(ctx context.Context) {
 				for {
 					cmd := exec.CommandContext(ctx, module)
 					cmd.Env = os.Environ()
+					label := "correlation_id=" + uuid.New().String()
+					if os.Getenv("GOLOG_LOG_LABELS") != "" {
+						label = label + os.Getenv("GOLOG_LOG_LABELS") + "," + label
+					}
+					cmd.Env = append(cmd.Env, "GOLOG_LOG_LABELS="+label)
 					cmd.Stdout = os.Stdout
 					cmd.Stderr = os.Stderr
 					logger.Debug("Spawning new process")
@@ -84,11 +89,6 @@ func NewProcessManager() (*ProcessManager, error) {
 	env.MustSet(env.ISP, ipInfo.ISP)
 	env.MustSetAny(env.Latitude, ipInfo.Latitude)
 	env.MustSetAny(env.Longitude, ipInfo.Longitude)
-	if os.Getenv("GOLOG_LOG_LABELS") != "" {
-		env.MustSetAny("GOLOG_LOG_LABELS", os.Getenv("GOLOG_LOG_LABELS")+",correlation_id="+uuid.New().String())
-	} else {
-		env.MustSetAny("GOLOG_LOG_LABELS", "correlation_id="+uuid.New().String())
-	}
 	errorInterval := env.GetDuration(env.ProcessErrorInterval, 5*time.Second)
 
 	return &ProcessManager{

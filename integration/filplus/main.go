@@ -11,6 +11,7 @@ import (
 	"github.com/ipfs/go-cid"
 	logging "github.com/ipfs/go-log/v2"
 	_ "github.com/joho/godotenv/autoload"
+	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/pkg/errors"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -104,6 +105,76 @@ func NewFilPlusIntegration() *FilPlusIntegration {
 	}
 }
 
+var moduleMetadataMap = map[task.ModuleName]map[string]string{
+	task.GraphSync: {
+		"assume_label":  "true",
+		"retrieve_type": "root_block",
+	},
+	task.Bitswap: {
+		"assume_label":  "true",
+		"retrieve_type": "root_block",
+	},
+	task.HTTP: {
+		"retrieve_type": "piece",
+		"retrieve_size": "1048576",
+	},
+}
+
+func (f *FilPlusIntegration) addErrorResults(results []interface{}, document model.DealState,
+	providerInfo resolver.MinerInfo, location resolver.IPInfo,
+	errorCode task.ErrorCode, errorMessage string) []interface{} {
+	for module, metadata := range moduleMetadataMap {
+		newMetadata := make(map[string]string)
+		for k, v := range metadata {
+			newMetadata[k] = v
+		}
+		newMetadata["deal_id"] = strconv.Itoa(int(document.DealID))
+		newMetadata["client"] = document.Client
+		results = append(results, task.Result{
+			Task: task.Task{
+				Requester: f.requester,
+				Module:    module,
+				Metadata:  newMetadata,
+				Provider: task.Provider{
+					ID:         document.Provider,
+					PeerID:     providerInfo.PeerId,
+					Multiaddrs: convert.MultiaddrsBytesToStringArraySkippingError(providerInfo.Multiaddrs),
+					City:       location.City,
+					Region:     location.Region,
+					Country:    location.Country,
+					Continent:  location.Continent,
+				},
+				Content: task.Content{
+					CID: document.Label,
+				},
+				CreatedAt: time.Now().UTC(),
+				Timeout:   env.GetDuration(env.FilplusIntegrationTaskTimeout, 15*time.Second)},
+			Retriever: task.Retriever{
+				PublicIP:  f.ipInfo.IP,
+				City:      f.ipInfo.City,
+				Region:    f.ipInfo.Region,
+				Country:   f.ipInfo.Country,
+				Continent: f.ipInfo.Continent,
+				ASN:       f.ipInfo.ASN,
+				ISP:       f.ipInfo.ISP,
+				Latitude:  f.ipInfo.Latitude,
+				Longitude: f.ipInfo.Longitude,
+			},
+			Result: task.RetrievalResult{
+				Success:      false,
+				ErrorCode:    errorCode,
+				ErrorMessage: errorMessage,
+				TTFB:         0,
+				Speed:        0,
+				Duration:     0,
+				Downloaded:   0,
+			},
+			CreatedAt: time.Now().UTC(),
+		})
+	}
+	return results
+}
+
 func (f *FilPlusIntegration) RunOnce(ctx context.Context) error {
 	logger.Info("start running filplus integration")
 
@@ -172,56 +243,22 @@ func (f *FilPlusIntegration) RunOnce(ctx context.Context) error {
 				errors.As(err, &requesterror.InvalidIPError{}) ||
 				errors.As(err, &requesterror.HostLookupError{}) ||
 				errors.As(err, &requesterror.NoValidMultiAddrError{}) {
-				results = append(results, task.Result{
-					Task: task.Task{
-						Requester: f.requester,
-						Module:    task.GraphSync,
-						Metadata: map[string]string{
-							"deal_id":       strconv.Itoa(int(document.DealID)),
-							"client":        document.Client,
-							"assume_label":  "true",
-							"retrieve_type": "root_block"},
-						Provider: task.Provider{
-							ID:         document.Provider,
-							PeerID:     providerInfo.PeerId,
-							Multiaddrs: convert.MultiaddrsBytesToStringArraySkippingError(providerInfo.Multiaddrs),
-							City:       location.City,
-							Region:     location.Region,
-							Country:    location.Country,
-							Continent:  location.Continent,
-						},
-						Content: task.Content{
-							CID: document.Label,
-						},
-						CreatedAt: time.Now().UTC(),
-						Timeout:   env.GetDuration(env.FilplusIntegrationTaskTimeout, 15*time.Second)},
-					Retriever: task.Retriever{
-						PublicIP:  f.ipInfo.IP,
-						City:      f.ipInfo.City,
-						Region:    f.ipInfo.Region,
-						Country:   f.ipInfo.Country,
-						Continent: f.ipInfo.Continent,
-						ASN:       f.ipInfo.ASN,
-						ISP:       f.ipInfo.ISP,
-						Latitude:  f.ipInfo.Latitude,
-						Longitude: f.ipInfo.Longitude,
-					},
-					Result: task.RetrievalResult{
-						Success:      false,
-						ErrorCode:    task.NoValidMultiAddrs,
-						ErrorMessage: err.Error(),
-						TTFB:         0,
-						Speed:        0,
-						Duration:     0,
-						Downloaded:   0,
-					},
-					CreatedAt: time.Now().UTC(),
-				})
+				results = f.addErrorResults(results, document, providerInfo, location,
+					task.NoValidMultiAddrs, err.Error())
 			} else {
 				logger.With("provider", document.Provider, "deal_id", document.DealID).
 					Error("failed to resolve provider location")
 			}
 			continue
+		}
+
+		_, err = peer.Decode(providerInfo.PeerId)
+		if err != nil {
+			logger.With("provider", document.Provider, "deal_id", document.DealID, "peerID", providerInfo.PeerId,
+				"err", err).
+				Info("failed to decode peerID")
+			results = f.addErrorResults(results, document, providerInfo, location,
+				task.InvalidPeerID, err.Error())
 		}
 
 		if isPayloadCID {

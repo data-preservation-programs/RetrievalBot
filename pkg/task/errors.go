@@ -11,6 +11,7 @@ type ErrorCode string
 
 const (
 	ErrorCodeNone                  ErrorCode = ""
+	InvalidPeerID                  ErrorCode = "invalid_peerid"
 	NoValidMultiAddrs              ErrorCode = "no_valid_multiaddrs"
 	CannotConnect                  ErrorCode = "cannot_connect"
 	NotFound                       ErrorCode = "not_found"
