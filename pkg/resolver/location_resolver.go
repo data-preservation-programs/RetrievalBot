@@ -84,6 +84,10 @@ func GetPublicIPInfo(ctx context.Context, ip string, token string) (IPInfo, erro
 	}
 	defer resp.Body.Close()
 
+	if resp.StatusCode != http.StatusOK {
+		return IPInfo{}, errors.New("failed to get IP info: " + resp.Status)
+	}
+
 	var ipInfo IPInfo
 	err = json.NewDecoder(resp.Body).Decode(&ipInfo)
 	if err != nil {

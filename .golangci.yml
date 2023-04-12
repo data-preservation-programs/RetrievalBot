@@ -47,6 +47,7 @@ linters:
     - cyclop
     - gomnd
     - gochecknoglobals
+    - funlen
 
 linters-settings:
   revive:

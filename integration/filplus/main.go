@@ -151,7 +151,8 @@ func (f *FilPlusIntegration) RunOnce(ctx context.Context) error {
 
 		isPayloadCID := true
 		// Skip graphsync and bitswap if the cid is not decodable, i.e. it is a pieceCID
-		if !slices.Contains([]uint64{cid.Raw, cid.DagCBOR, cid.DagProtobuf, cid.DagJSON, cid.DagJOSE}, labelCID.Prefix().Codec) {
+		if !slices.Contains([]uint64{cid.Raw, cid.DagCBOR, cid.DagProtobuf, cid.DagJSON, cid.DagJOSE},
+			labelCID.Prefix().Codec) {
 			logger.With("provider", document.Provider, "deal_id", document.DealID,
 				"label", document.Label, "codec", labelCID.Prefix().Codec).
 				Info("Skip Bitswap and Graphsync because the Label is likely not a payload CID")
@@ -219,8 +220,8 @@ func (f *FilPlusIntegration) RunOnce(ctx context.Context) error {
 			} else {
 				logger.With("provider", document.Provider, "deal_id", document.DealID).
 					Error("failed to resolve provider location")
-				continue
 			}
+			continue
 		}
 
 		if isPayloadCID {
