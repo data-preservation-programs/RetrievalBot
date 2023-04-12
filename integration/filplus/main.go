@@ -248,7 +248,7 @@ func (f *FilPlusIntegration) RunOnce(ctx context.Context) error {
 				results = f.addErrorResults(results, document, providerInfo, location,
 					task.NoValidMultiAddrs, err.Error())
 			} else {
-				logger.With("provider", document.Provider, "deal_id", document.DealID).
+				logger.With("provider", document.Provider, "deal_id", document.DealID, "err", err).
 					Error("failed to resolve provider location")
 			}
 			continue
