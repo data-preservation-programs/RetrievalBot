@@ -4,6 +4,7 @@ import (
 	"context"
 	"github.com/data-preservation-programs/RetrievalBot/pkg/task"
 	"github.com/data-preservation-programs/RetrievalBot/worker/graphsync"
+	logging "github.com/ipfs/go-log/v2"
 )
 
 func main() {
@@ -17,6 +18,6 @@ func main() {
 
 	err = process.Poll(context.Background())
 	if err != nil {
-		panic(err)
+		logging.Logger("task-worker").With("protocol", task.HTTP).Error(err)
 	}
 }
