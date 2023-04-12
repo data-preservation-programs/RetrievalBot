@@ -30,17 +30,18 @@ const (
 )
 
 var errorStringMap = map[string]ErrorCode{
-	"deal rejected: Price per byte too low":                        DealRejectedPricePerByteTooLow,
-	"deal rejected: Unseal price too small":                        DealRejectedUnsealPriceTooLow,
-	"Too many retrieval deals received":                            Throttled,
-	"Access Control":                                               NoAccess,
-	"Under maintenance, retry later":                               UnderMaintenance,
-	"deal rejected: miner is not accepting online retrieval deals": NotOnline,
-	"unconfirmed block transfer":                                   UnconfirmedBlockTransfer,
-	"no decoder registered for multicodec code":                    CIDCodecNotSupported,
-	"not found in db":                                              NotFound,
-	"response rejected":                                            ResponseRejected,
-	"failed to fetch storage deal state":                           DealStateMissing,
+	"Price per byte too low":                        DealRejectedPricePerByteTooLow,
+	"Unseal price too small":                        DealRejectedUnsealPriceTooLow,
+	"Too many retrieval deals received":             Throttled,
+	"Access Control":                                NoAccess,
+	"Under maintenance, retry later":                UnderMaintenance,
+	"miner is not accepting online retrieval deals": NotOnline,
+	"unconfirmed block transfer":                    UnconfirmedBlockTransfer,
+	"no decoder registered for multicodec code":     CIDCodecNotSupported,
+	"not found":                          NotFound,
+	"response rejected":                  ResponseRejected,
+	"failed to fetch storage deal state": DealStateMissing,
+	"there is no unsealed piece containing payload cid": NotFound,
 }
 
 func resolveError(err error) ErrorCode {
