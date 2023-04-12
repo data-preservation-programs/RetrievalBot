@@ -15,6 +15,7 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
+	"golang.org/x/exp/slices"
 	"strconv"
 	"time"
 )
@@ -141,11 +142,20 @@ func (f *FilPlusIntegration) RunOnce(ctx context.Context) error {
 	// Insert the documents into task queue
 	for _, document := range documents {
 		// If the label is a correct CID, assume it is the payload CID and try GraphSync and Bitswap retrieval
-		_, err := cid.Decode(document.Label)
+		labelCID, err := cid.Decode(document.Label)
 		if err != nil {
 			logger.With("label", document.Label, "deal_id", document.DealID).
 				Debug("failed to decode label as CID")
 			continue
+		}
+
+		isPayloadCID := true
+		// Skip graphsync and bitswap if the cid is not decodable, i.e. it is a pieceCID
+		if !slices.Contains([]uint64{cid.Raw, cid.DagCBOR, cid.DagProtobuf, cid.DagJSON, cid.DagJOSE}, labelCID.Prefix().Codec) {
+			logger.With("provider", document.Provider, "deal_id", document.DealID,
+				"label", document.Label, "codec", labelCID.Prefix().Codec).
+				Info("Skip Bitswap and Graphsync because the Label is likely not a payload CID")
+			isPayloadCID = false
 		}
 
 		providerInfo, err := f.providerResolver.ResolveProvider(ctx, document.Provider)
@@ -213,30 +223,32 @@ func (f *FilPlusIntegration) RunOnce(ctx context.Context) error {
 			}
 		}
 
-		for _, module := range []task.ModuleName{task.GraphSync, task.Bitswap} {
-			tasks = append(tasks, task.Task{
-				Requester: f.requester,
-				Module:    module,
-				Metadata: map[string]string{
-					"deal_id":       strconv.Itoa(int(document.DealID)),
-					"client":        document.Client,
-					"assume_label":  "true",
-					"retrieve_type": "root_block"},
-				Provider: task.Provider{
-					ID:         document.Provider,
-					PeerID:     providerInfo.PeerId,
-					Multiaddrs: convert.MultiaddrsBytesToStringArraySkippingError(providerInfo.Multiaddrs),
-					City:       location.City,
-					Region:     location.Region,
-					Country:    location.Country,
-					Continent:  location.Continent,
-				},
-				Content: task.Content{
-					CID: document.Label,
-				},
-				CreatedAt: time.Now().UTC(),
-				Timeout:   env.GetDuration(env.FilplusIntegrationTaskTimeout, 15*time.Second),
-			})
+		if isPayloadCID {
+			for _, module := range []task.ModuleName{task.GraphSync, task.Bitswap} {
+				tasks = append(tasks, task.Task{
+					Requester: f.requester,
+					Module:    module,
+					Metadata: map[string]string{
+						"deal_id":       strconv.Itoa(int(document.DealID)),
+						"client":        document.Client,
+						"assume_label":  "true",
+						"retrieve_type": "root_block"},
+					Provider: task.Provider{
+						ID:         document.Provider,
+						PeerID:     providerInfo.PeerId,
+						Multiaddrs: convert.MultiaddrsBytesToStringArraySkippingError(providerInfo.Multiaddrs),
+						City:       location.City,
+						Region:     location.Region,
+						Country:    location.Country,
+						Continent:  location.Continent,
+					},
+					Content: task.Content{
+						CID: document.Label,
+					},
+					CreatedAt: time.Now().UTC(),
+					Timeout:   env.GetDuration(env.FilplusIntegrationTaskTimeout, 15*time.Second),
+				})
+			}
 		}
 
 		tasks = append(tasks, task.Task{
