@@ -94,6 +94,10 @@ func GetPublicIPInfo(ctx context.Context, ip string, token string) (IPInfo, erro
 		return IPInfo{}, errors.Wrap(err, "failed to decode IP info")
 	}
 
+	if ipInfo.Bogon {
+		return IPInfo{}, requesterror.BogonIPError{IP: ip}
+	}
+
 	ipInfo.Resolve()
 
 	if continent, ok := countryMapping[ipInfo.Country]; ok {
@@ -132,10 +136,6 @@ func (l LocationResolver) ResolveIP(ctx context.Context, ip net.IP) (IPInfo, err
 	ipInfo, err := GetPublicIPInfo(ctx, ipString, l.ipInfoToken)
 	if err != nil {
 		return IPInfo{}, errors.Wrap(err, "failed to get IP info")
-	}
-
-	if ipInfo.Bogon {
-		return IPInfo{}, requesterror.BogonIPError{IP: ipString}
 	}
 
 	l.cache.Set(ipString, ipInfo, ttlcache.DefaultTTL)
