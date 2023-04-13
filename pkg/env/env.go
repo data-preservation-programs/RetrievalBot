@@ -103,7 +103,7 @@ func GetRequiredFloat32(key Key) float32 {
 }
 
 func GetFloat64(key Key, defaultValue float64) float64 {
-	value := GetRequiredString(key)
+	value := os.Getenv(string(key))
 	floatValue, err := strconv.ParseFloat(value, 64)
 	if err != nil {
 		logging.Logger("env").Debugf("failed to parse %s as float", key)
