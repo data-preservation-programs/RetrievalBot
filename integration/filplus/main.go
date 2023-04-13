@@ -261,6 +261,7 @@ func (f *FilPlusIntegration) RunOnce(ctx context.Context) error {
 				Info("failed to decode peerID")
 			results = f.addErrorResults(results, document, providerInfo, location,
 				task.InvalidPeerID, err.Error())
+			continue
 		}
 
 		if isPayloadCID {
