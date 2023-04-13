@@ -7,7 +7,7 @@ import (
 	"time"
 )
 
-// RandomObjects Select l random objects from x with probability c^x[i].YearsTillExpiration().
+// RandomObjects Select l random objects from x with probability c^(-x[i].AgeInYears()).
 func RandomObjects(x []model.DealState, l int, c float64) []model.DealState {
 	// Initialize the random number generator.
 	rand.Seed(time.Now().UnixNano())
@@ -15,7 +15,7 @@ func RandomObjects(x []model.DealState, l int, c float64) []model.DealState {
 	// Calculate the sum of C^age for all objects.
 	var sum float64
 	for _, obj := range x {
-		sum += math.Pow(c, obj.YeasTillExpiration())
+		sum += math.Pow(c, -obj.AgeInYears())
 	}
 
 	// Select Y random objects.
@@ -32,7 +32,7 @@ func RandomObjects(x []model.DealState, l int, c float64) []model.DealState {
 				// Skip objects that have already been selected.
 				continue
 			}
-			randNum -= math.Pow(c, obj.YeasTillExpiration())
+			randNum -= math.Pow(c, -obj.AgeInYears())
 			if randNum <= 0 {
 				// Add the current object to the selected list.
 				results = append(results, obj)

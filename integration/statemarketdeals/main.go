@@ -161,6 +161,8 @@ func refresh(ctx context.Context) error {
 				Client:     deal.Proposal.Client,
 				Provider:   deal.Proposal.Provider,
 				Expiration: model.EpochToTime(deal.Proposal.EndEpoch),
+				PieceSize:  int64(deal.Proposal.PieceSize),
+				Start:      model.EpochToTime(deal.State.SectorStartEpoch),
 			}
 
 			dealBatch = append(dealBatch, dealState)
