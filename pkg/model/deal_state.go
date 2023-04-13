@@ -20,3 +20,7 @@ func EpochToTime(epoch int32) time.Time {
 	//nolint:gomnd
 	return time.Unix(int64(epoch*30+1598306400), 0)
 }
+
+func (s DealState) YeasTillExpiration() float64 {
+	return time.Until(s.Expiration).Hours() / 24 / 365
+}

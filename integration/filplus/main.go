@@ -44,6 +44,7 @@ type FilPlusIntegration struct {
 	locationResolver      resolver.LocationResolver
 	providerResolver      resolver.ProviderResolver
 	ipInfo                resolver.IPInfo
+	randConst             float64
 }
 
 func NewFilPlusIntegration() *FilPlusIntegration {
@@ -102,6 +103,7 @@ func NewFilPlusIntegration() *FilPlusIntegration {
 		providerResolver:      *providerResolver,
 		resultCollection:      resultCollection,
 		ipInfo:                ipInfo,
+		randConst:             env.GetFloat64(env.FilplusIntegrationRandConst, 4.0),
 	}
 }
 
@@ -210,6 +212,7 @@ func (f *FilPlusIntegration) RunOnce(ctx context.Context) error {
 		return errors.Wrap(err, "failed to decode documents")
 	}
 
+	documents = RandomObjects(documents, len(documents)/2, f.randConst)
 	tasks := make([]interface{}, 0)
 	results := make([]interface{}, 0)
 	// Insert the documents into task queue
@@ -325,6 +328,32 @@ func (f *FilPlusIntegration) RunOnce(ctx context.Context) error {
 	}
 
 	logger.With("count", len(tasks)).Info("inserted tasks")
+
+	countPerCountry := make(map[string]int)
+	countPerContinent := make(map[string]int)
+	countPerModule := make(map[task.ModuleName]int)
+	for _, t := range tasks {
+		//nolint:forcetypeassert
+		tsk := t.(task.Task)
+		country := tsk.Provider.Country
+		continent := tsk.Provider.Continent
+		module := tsk.Module
+		countPerCountry[country]++
+		countPerContinent[continent]++
+		countPerModule[module]++
+	}
+
+	for country, count := range countPerCountry {
+		logger.With("country", country, "count", count).Info("tasks per country")
+	}
+
+	for continent, count := range countPerContinent {
+		logger.With("continent", continent, "count", count).Info("tasks per continent")
+	}
+
+	for module, count := range countPerModule {
+		logger.With("module", module, "count", count).Info("tasks per module")
+	}
 
 	if len(results) > 0 {
 		_, err = f.resultCollection.InsertMany(ctx, results)

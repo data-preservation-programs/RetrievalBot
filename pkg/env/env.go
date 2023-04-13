@@ -24,6 +24,7 @@ const (
 	ResultMongoDatabase           Key = "RESULT_MONGO_DATABASE"
 	FilplusIntegrationBatchSize   Key = "FILPLUS_INTEGRATION_BATCH_SIZE"
 	FilplusIntegrationTaskTimeout Key = "FILPLUS_INTEGRATION_TASK_TIMEOUT"
+	FilplusIntegrationRandConst   Key = "FILPLUS_INTEGRATION_RANDOM_CONSTANT"
 	StatemarketdealsMongoURI      Key = "STATEMARKETDEALS_MONGO_URI"
 	StatemarketdealsMongoDatabase Key = "STATEMARKETDEALS_MONGO_DATABASE"
 	StatemarketdealsBatchSize     Key = "STATEMARKETDEALS_BATCH_SIZE"
@@ -99,6 +100,17 @@ func GetRequiredFloat32(key Key) float32 {
 	}
 
 	return float32(floatValue)
+}
+
+func GetFloat64(key Key, defaultValue float64) float64 {
+	value := GetRequiredString(key)
+	floatValue, err := strconv.ParseFloat(value, 64)
+	if err != nil {
+		logging.Logger("env").Debugf("failed to parse %s as float", key)
+		return defaultValue
+	}
+
+	return floatValue
 }
 
 func GetRequiredDuration(key Key) time.Duration {
