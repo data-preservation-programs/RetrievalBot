@@ -44,9 +44,10 @@ This integration push a single workitem into the queue with command line argumen
 ## Get started
 1. Setup a mongodb server
 2. Setup a free ipinfo account and grab a token
-3. Run the software natively or via a docker with environment variables. You need to run three programs:
+3. `make build`
+4. Run the software natively or via a docker with environment variables. You need to run three programs:
    1. `statemarketdeals` that pulls statemarketdeals.json from GLIP API and saves it to the database. Check [.env.statemarketdeals](./.env.statemarketdeals) for environment variables.
    2. `filplus_integration` that queues retrieval tasks into a task queue. Check [.env.filplus](./.env.filplus) for environment variables.
    3. `retrieval_worker` that consumes the task queue and performs the retrieval. Check [.env.retrievalworker](./.env.retrievalworker) for environment variables.
-4. All programs above will load `.env` file in the working directory so you will need to copy the relevant environment variable file to `.env`
-5. When running `retrieval_worker`, you need to make sure `bitswap_worker`, `graphsync_worker`, `http_worker` are in the working directory as well.
+5. All programs above will load `.env` file in the working directory so you will need to copy the relevant environment variable file to `.env`
+6. When running `retrieval_worker`, you need to make sure `bitswap_worker`, `graphsync_worker`, `http_worker` are in the working directory as well.
