@@ -1,12 +1,12 @@
 build:
-	go build -o RetrievalWorker.exe ./pkg/cmd/retrieval_worker
-	go build -o StubWorker.exe ./worker/stub/cmd
-	go build -o GraphsyncWorker.exe ./worker/graphsync/cmd
-	go build -o HttpWorker.exe ./worker/http/cmd
-	go build -o BitswapWorker.exe ./worker/bitswap/cmd
-	go build -o OneOffIntegration.exe ./integration/oneoff
-	go build -o StateMarketDeals.exe ./integration/statemarketdeals
-	go build -o FilPlusIntegration.exe ./integration/filplus
+	go build -o retrieval_worker ./pkg/cmd/retrieval_worker
+	go build -o stub_worker ./worker/stub/cmd
+	go build -o graphsync_worker ./worker/graphsync/cmd
+	go build -o http_worker ./worker/http/cmd
+	go build -o bitswap_worker ./worker/bitswap/cmd
+	go build -o oneoff_integration ./integration/oneoff
+	go build -o statemarketdeals ./integration/statemarketdeals
+	go build -o filplus_integration ./integration/filplus
 
 lint:
 	gofmt -s -w .

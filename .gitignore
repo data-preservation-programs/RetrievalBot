@@ -15,3 +15,12 @@
 # vendor/
 .env
 .env.prod
+
+/bitswap_worker
+/filplus_integration
+/graphsync_worker
+/http_worker
+/oneoff_integration
+/retrieval_worker
+/statemarketdeals
+/stub_worker
