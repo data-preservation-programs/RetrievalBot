@@ -3,8 +3,8 @@ WORKDIR /app
 COPY . .
 RUN make build
 # Main command to spin up workers to perform retrieval tasks
-# CMD ["/app/RetrievalWorker.exe"]
+# CMD ["/app/retrieval_worker"]
 # Start State Market Deals integration which will update the database with deals from the state market
-# CMD ["/app/StateMarketDeals.exe"]
+# CMD ["/app/statemarketdeals"]
 # Start Stub integration which pushes fake tasks to the queue
-# CMD ["/app/StubIntegration.exe"]
+# CMD ["/app/filplus_integration"]
