@@ -38,11 +38,15 @@ This integration pulls random active deals from StateMarketDeals database and pu
 ### Oneoff Integration
 This integration push a single workitem into the queue with command line arguments, i.e.
 ```shell
-./OneOffIntegration.exe http f0xxxx baxxxx
+./oneoff_integration http f0xxxx baxxxx
 ```
 
 ## Get started
 1. Setup a mongodb server
-2. Run the software natively or via a docker with environment variables. Please see [.env.retrievalworker](./.env.retrievalworker), [.env.statemarketdeals](./.env.statemarketdeals), [.env.filplus](./.env.filplus),  to find all relevant keys required. 
-* Do not run `StubWorker.exe`, `GraphsyncWorker.exe`, `HttpWorker.exe`, `BitswapWorker.exe` directly as they are invoked by `RetrievalWorker.exe` to offer sandboxed environment. They also need to exist in the working directory.
-* For a mininal Filplus validation, `RetrievalWorker.exe`, `StateMarketDeals.exe` and `FilPlusIntegration.exe` needs to be run.
+2. Setup a free ipinfo account and grab a token
+3. Run the software natively or via a docker with environment variables. You need to run three programs:
+   1. `statemarketdeals` that pulls statemarketdeals.json from GLIP API and saves it to the database. Check [.env.statemarketdeals](./.env.statemarketdeals) for environment variables.
+   2. `filplus_integration` that queues retrieval tasks into a task queue. Check [.env.filplus](./.env.filplus) for environment variables.
+   3. `retrieval_worker` that consumes the task queue and performs the retrieval. Check [.env.retrievalworker](./.env.retrievalworker) for environment variables.
+4. All programs above will load `.env` file in the working directory so you will need to copy the relevant environment variable file to `.env`
+5. When running `retrieval_worker`, you need to make sure `bitswap_worker`, `graphsync_worker`, `http_worker` are in the working directory as well.
