@@ -66,6 +66,10 @@ func main() {
 	endDate := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
 
 	fmt.Printf("startDate: %s, endDate: %s\n", startDate, endDate)
+	if startDate.After(endDate) || startDate.Equal(endDate) {
+		fmt.Println("No new data to process")
+		return
+	}
 
 	// Aggregate the results
 	matchStage := bson.D{{"$match", bson.D{
