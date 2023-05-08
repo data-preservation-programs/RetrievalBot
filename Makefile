@@ -7,6 +7,7 @@ build:
 	go build -o oneoff_integration ./integration/oneoff
 	go build -o statemarketdeals ./integration/statemarketdeals
 	go build -o filplus_integration ./integration/filplus
+	go build -o repdao ./integration/repdao
 
 lint:
 	gofmt -s -w .
