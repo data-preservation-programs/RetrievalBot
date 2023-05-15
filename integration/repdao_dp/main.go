@@ -41,9 +41,9 @@ func main() {
 	defer repdaoMongo.Disconnect(ctx)
 
 	countryCollectionMap := map[string]string{
-		"US": "RetrievalBot_1",
-		"DE": "RetrievalBot_2",
-		"SG": "RetrievalBot_3",
+		"US": "retrievalbot_1",
+		"DE": "retrievalbot_2",
+		"SG": "retrievalbot_3",
 	}
 
 	for country, collectionName := range countryCollectionMap {
