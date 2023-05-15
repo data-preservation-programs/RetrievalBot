@@ -9,5 +9,6 @@ use (
 	./integration/statemarketdeals
 	./pkg
 	./integration/filplus
-	integration/repdao
+	./integration/repdao
+	./integration/repdao_dp
 )

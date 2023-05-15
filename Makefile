@@ -8,6 +8,7 @@ build:
 	go build -o statemarketdeals ./integration/statemarketdeals
 	go build -o filplus_integration ./integration/filplus
 	go build -o repdao ./integration/repdao
+	go build -o repdao_dp ./integration/repdao_dp
 
 lint:
 	gofmt -s -w .
