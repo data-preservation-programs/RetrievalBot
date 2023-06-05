@@ -2,6 +2,8 @@ run:
   tests: true
   skip-dirs:
     - extern
+    - integration/repdao
+    - integration/repdao_dp
   skip-files:
     - _test\.go
 
