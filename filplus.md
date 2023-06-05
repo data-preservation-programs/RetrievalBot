@@ -2,16 +2,18 @@
 
 ## Background
 
-The goal of filplus retrieval sampling is to offer an aggregated view of how each storage provider performs in terms of
-retrieval.
-It is a sampling of the retrieval performance of the storage providers in the Filecoin network.
+The goal of filplus retrieval sampling is to offer an aggregated view of how each storage provider performs in
+retrievability.
+The Filecoin community would like to make this retrieval sampling logic public and transparent, so that participants
+including storage providers, notaries, and data clients are aligned on best practices and how their reputation is
+evaluated.
 
 ## Sampling Logic
 
 All active verified deals in Filecoin network will be sampled randomly.
 
-Newer deal will have a higher chance to be sampled than older deals. The chance is 4x for each year the deal is
-newer. This gives newer deal a higher chance to be sampled for retrieval testing.
+Newer deals will have a higher chance to be sampled than older deals. The chance is 4x for each year the deal is newer
+determined by deal start date. This gives newer deal a higher chance to be sampled for retrieval testing.
 
 ## Deployment
 
