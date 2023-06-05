@@ -12,11 +12,4 @@ build:
 
 lint:
 	gofmt -s -w .
-	cd pkg && golangci-lint run
-	cd worker/stub && golangci-lint run
-	cd worker/http && golangci-lint run
-	cd worker/graphsync && golangci-lint run
-	cd worker/bitswap && golangci-lint run
-	cd integration/oneoff && golangci-lint run
-	cd integration/statemarketdeals && golangci-lint run
-	cd integration/filplus && golangci-lint run
+	golangci-lint run --timeout 10m
