@@ -10,8 +10,8 @@ It is a sampling of the retrieval performance of the storage providers in the Fi
 
 All active verified deals in Filecoin network will be sampled randomly.
 
-Newer deal will have a higher chance to be sampled than older deals. The chance is 0.25x for each year the deal is
-active. This gives newer deal a higher chance to be sampled for retrieval testing.
+Newer deal will have a higher chance to be sampled than older deals. The chance is 4x for each year the deal is
+newer. This gives newer deal a higher chance to be sampled for retrieval testing.
 
 ## Deployment
 
@@ -69,10 +69,10 @@ As part of the new HTTP retrieval push, we are proposing below changes to the HT
       between `[data_offset, data_offset + data_length]`
 3. Make ranges retrieval for a random offset of that piece, up to 8MiB length
     * We check if retrieved data is all zeroes. Overtime, we will get a ratio of how much datacap is under utilized by
-      padding those zeroes
-    * A valid IPLD block size is <= 4MiB so we should expect to get at least
+      padding data with zeroes
+    * Try to find `[varint, CID, block, varint, CID]`. This is a valid IPLD data block. A valid IPLD block size is <=
+      4MiB so we should expect to get at least
       one [IPLD data block](https://ipld.io/specs/transport/car/carv1/#format-description) within that range
-    * Try to find `[varint, CID, block, varint, CID]`. This is a valid IPLD data block
     * Calculate the compression ratio of the block bytes using zstd compression
         * High compression ratio / low entropy means the data is highly repetitive (i.e. repeating "hello world")
         * Low compression ratio / high entropy means the data is noisy (i.e. random bytes, already compressed or
@@ -80,21 +80,21 @@ As part of the new HTTP retrieval push, we are proposing below changes to the HT
         * Useful data usually does not have an extremely high or low entropy and the compression ratio can be compared
           to the original data source
 4. The purpose of this retrieval type is to make sure the clients are not padding too much zeroes or are actually
-   storing data that is not useful.
-5. Since the retrieval is lightweight, most of the retrieval testing will be using this kind
+   storing data that is not useful. Since the retrieval is lightweight, most of the retrieval testing will be using this
+   kind
 
 #### Whole piece retrieval
 
 1. Retrieve the whole piece and verify `PieceCID` and `PieceSize` matches the deal proposal
-2. The purpose of this retrieval is to make sure the HTTP endpoint is in fact serving the correct piece
-3. This retrieval is more expensive and will be used very rarely
+2. The purpose of this retrieval is to make sure the HTTP endpoint is in fact serving the correct piece. This retrieval
+   is more expensive and will be used very rarely
 
 #### File retrieval
 
 1. If the client has provided a list of CIDs for files included in the dataset, we have the opportunity to retrieve the
    whole file
 2. Retrieve the first 4k bytes of the file, check the file type
-   using [libmagic](https://man7.org/linux/man-pages/man3/libmagic.3.html). Overtime, this will give us a overall
-   picture of what types of files is this dataset composed of.
-3. With less sampling rate, retrieve the while file and store it in an online storage (i.e. web3.storage). The file can
-   be downloaded by notary to check the content. 
+   using [libmagic](https://man7.org/linux/man-pages/man3/libmagic.3.html). Overtime, this will give us an overall
+   picture of what types of files is this dataset composed of
+3. With less sampling rate, retrieve the whole file and store it in an online storage (i.e. web3.storage). The file can
+   be downloaded by notary to check the content
