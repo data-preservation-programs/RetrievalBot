@@ -12,4 +12,4 @@ build:
 
 lint:
 	gofmt -s -w .
-	golangci-lint run
+	golangci-lint run --timeout 10m
