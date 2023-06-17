@@ -9,7 +9,6 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
-	"os"
 	"strings"
 	"time"
 )
@@ -24,8 +23,8 @@ type WorkerProcess struct {
 	resultCollection   *mongo.Collection
 	worker             Worker
 	module             ModuleName
-	acceptedContinents []string
-	acceptedCountries  []string
+	acceptedContinents string
+	acceptedCountries  string
 	pollInterval       time.Duration
 	retrieverInfo      Retriever
 	timeoutBuffer      time.Duration
@@ -56,16 +55,6 @@ func NewTaskWorkerProcess(
 
 	resultCollection := resultClient.Database(env.GetRequiredString(env.ResultMongoDatabase)).Collection("task_result")
 
-	acceptedContinents := make([]string, 0)
-	if env.GetString(env.AcceptedContinents, "") != "" {
-		acceptedContinents = strings.Split(os.Getenv("ACCEPTED_CONTINENTS"), ",")
-	}
-
-	acceptedCountries := make([]string, 0)
-	if env.GetString(env.AcceptedCountries, "") != "" {
-		acceptedCountries = strings.Split(os.Getenv("ACCEPTED_COUNTRIES"), ",")
-	}
-
 	retrieverInfo := Retriever{
 		PublicIP:  env.GetRequiredString(env.PublicIP),
 		City:      env.GetRequiredString(env.City),
@@ -86,8 +75,8 @@ func NewTaskWorkerProcess(
 		resultCollection,
 		worker,
 		module,
-		acceptedContinents,
-		acceptedCountries,
+		env.GetString(env.AcceptedContinents, ""),
+		env.GetString(env.AcceptedCountries, ""),
 		env.GetDuration(env.TaskWorkerPollInterval, 10*time.Second),
 		retrieverInfo,
 		env.GetDuration(env.TaskWorkerTimeoutBuffer, 10*time.Second),
@@ -106,13 +95,23 @@ func (t WorkerProcess) Poll(ctx context.Context) error {
 		}
 
 		if len(t.acceptedCountries) > 0 {
-			//nolint:govet
-			match = append(match, bson.E{Key: "provider.country", Value: bson.D{{"$in", t.acceptedCountries}}})
+			if strings.HasPrefix(t.acceptedCountries, "!") {
+				match = append(match, bson.E{Key: "provider.country",
+					Value: bson.D{{Key: "$nin", Value: strings.Split(t.acceptedCountries[1:], ",")}}})
+			} else {
+				match = append(match, bson.E{Key: "provider.country",
+					Value: bson.D{{Key: "$in", Value: strings.Split(t.acceptedCountries, ",")}}})
+			}
 		}
 
 		if len(t.acceptedContinents) > 0 {
-			//nolint:govet
-			match = append(match, bson.E{Key: "provider.continent", Value: bson.D{{"$in", t.acceptedContinents}}})
+			if strings.HasPrefix(t.acceptedCountries, "!") {
+				match = append(match, bson.E{Key: "provider.continent",
+					Value: bson.D{{Key: "$nin", Value: strings.Split(t.acceptedContinents[1:], ",")}}})
+			} else {
+				match = append(match, bson.E{Key: "provider.continent",
+					Value: bson.D{{Key: "$in", Value: strings.Split(t.acceptedContinents, ",")}}})
+			}
 		}
 
 		logger.With("filter", match).Debug("FindOneAndDelete")
