@@ -50,6 +50,7 @@ linters:
     - gomnd
     - gochecknoglobals
     - funlen
+    - maintidx
 
 linters-settings:
   revive:

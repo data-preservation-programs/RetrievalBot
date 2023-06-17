@@ -190,6 +190,13 @@ func (f *FilPlusIntegration) RunOnce(ctx context.Context) error {
 
 	if count >= 3*int64(f.batchSize) {
 		logger.Infof("task queue already have %d tasks, do nothing", f.batchSize*3)
+
+		// Remove old tasks that has stayed in the queue for too long
+		_, err = f.taskCollection.DeleteMany(ctx,
+			bson.M{"requester": f.requester, "created_at": bson.M{"$lt": time.Now().UTC().Add(-24 * time.Hour)}})
+		if err != nil {
+			return errors.Wrap(err, "failed to remove old tasks")
+		}
 		return nil
 	}
 
