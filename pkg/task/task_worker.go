@@ -116,7 +116,7 @@ func (t WorkerProcess) Poll(ctx context.Context) error {
 
 		logger.With("filter", match).Debug("FindOneAndDelete")
 		singleResult = t.taskCollection.FindOneAndDelete(ctx, match,
-			options.FindOneAndDelete().SetSort(bson.D{{Key: "created_by", Value: 1}}))
+			options.FindOneAndDelete().SetSort(bson.D{{Key: "created_at", Value: 1}}))
 		if errors.Is(singleResult.Err(), mongo.ErrNoDocuments) {
 			logger.Debug("no task singleResult")
 			time.Sleep(t.pollInterval)
