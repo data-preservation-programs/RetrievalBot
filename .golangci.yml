@@ -51,6 +51,7 @@ linters:
     - gochecknoglobals
     - funlen
     - maintidx
+    - depguard
 
 linters-settings:
   revive:

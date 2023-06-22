@@ -25,12 +25,13 @@ require (
 	github.com/multiformats/go-multiaddr v0.9.0
 	github.com/multiformats/go-multistream v0.4.1
 	github.com/pkg/errors v0.9.1
-	github.com/stretchr/testify v1.8.2
-	github.com/urfave/cli/v2 v2.24.4
+	github.com/rjNemo/underscore v0.6.1
+	github.com/stretchr/testify v1.8.4
+	github.com/urfave/cli/v2 v2.25.7
 	github.com/whyrusleeping/cbor-gen v0.0.0-20230126041949-52956bd4c9aa
 	github.com/ybbus/jsonrpc/v3 v3.1.4
 	go.mongodb.org/mongo-driver v1.11.3
-	golang.org/x/exp v0.0.0-20230321023759-10a507213a29
+	golang.org/x/exp v0.0.0-20230522175609-2e198f4a06a1
 	golang.org/x/xerrors v0.0.0-20220907171357-04be3eba64a2
 )
 
