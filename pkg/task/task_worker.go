@@ -105,7 +105,7 @@ func (t WorkerProcess) Poll(ctx context.Context) error {
 		}
 
 		if len(t.acceptedContinents) > 0 {
-			if strings.HasPrefix(t.acceptedCountries, "!") {
+			if strings.HasPrefix(t.acceptedContinents, "!") {
 				match = append(match, bson.E{Key: "provider.continent",
 					Value: bson.D{{Key: "$nin", Value: strings.Split(t.acceptedContinents[1:], ",")}}})
 			} else {
