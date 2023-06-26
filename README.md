@@ -7,9 +7,6 @@ There is no centralized orchestrator to manage retrieval queue or work. Instead,
 ## Workers
 Workers refer to the unit that consumes the worker queue. There are 4 basic types of workers as of now.
 
-### Stub Worker
-This type of worker does nothing but saves random result to the database. It is used to test the database connection and the queue.
-
 ### Bitswap Worker
 This worker currently only support retrieving a single block from the storage provider:
 1. Lookup the provider's libp2p protocols
@@ -25,6 +22,9 @@ This worker currently only support retrieving the first few MiB of the pieces fr
 1. Lookup the provider's libp2p protocols
 2. If it is using boost market, then lookup the supported retrieval protocols
 3. Find the HTTP protocol info and make the retrieval for up to first few MiB
+
+### Stub Worker
+This type of worker does nothing but saves random result to the database. It is used to test the database connection and the queue.
 
 ## Integrations
 Integrations refer to the unit that either pushes work item to the retrieval queue, or other long-running jobs that may interact with the database in different ways
