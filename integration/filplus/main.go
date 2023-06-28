@@ -113,7 +113,7 @@ func (f *FilPlusIntegration) RunOnce(ctx context.Context) error {
 
 	logger.With("count", count).Info("Current number of tasks in the queue")
 
-	if count > 0 {
+	if count > int64(f.batchSize) {
 		logger.Infof("task queue still have %d tasks, do nothing", count)
 
 		/* Remove old tasks that has stayed in the queue for too long
