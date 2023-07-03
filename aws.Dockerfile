@@ -1,15 +1,19 @@
 FROM public.ecr.aws/docker/library/golang:1.19-alpine as builder
 WORKDIR /app
 COPY . .
-RUN go build -o retrieval_worker ./pkg/cmd/retrieval_worker \
-    && go build -o graphsync_worker ./worker/graphsync/cmd \
-    && go build -o http_worker ./worker/http/cmd \
-    && go build -o bitswap_worker ./worker/bitswap/cmd
+RUN go build -o build/retrieval_worker ./pkg/cmd/retrieval_worker
+RUN go build -o build/stub_worker ./worker/stub/cmd
+RUN go build -o build/graphsync_worker ./worker/graphsync/cmd
+RUN go build -o build/http_worker ./worker/http/cmd
+RUN go build -o build/bitswap_worker ./worker/bitswap/cmd
+RUN go build -o build/oneoff_integration ./integration/oneoff
+RUN go build -o build/statemarketdeals ./integration/statemarketdeals
+RUN go build -o build/filplus_integration ./integration/filplus
+RUN go build -o build/repdao ./integration/repdao
+RUN go build -o build/repdao_dp ./integration/repdao_dp
+RUN go build -o build/spcoverage ./integration/spcoverage
 
 FROM public.ecr.aws/docker/library/alpine:latest
 WORKDIR /app
-COPY --from=builder /app/retrieval_worker .
-COPY --from=builder /app/graphsync_worker .
-COPY --from=builder /app/http_worker .
-COPY --from=builder /app/bitswap_worker .
+COPY --from=builder /app/build/ .
 CMD ["/app/retrieval_worker"]
