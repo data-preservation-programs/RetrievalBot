@@ -1,10 +1,15 @@
-FROM public.ecr.aws/docker/library/golang:1.19
+FROM golang:1.19-alpine as builder
 WORKDIR /app
 COPY . .
-RUN make build
-# Main command to spin up workers to perform retrieval tasks
-# CMD ["/app/retrieval_worker"]
-# Start State Market Deals integration which will update the database with deals from the state market
-# CMD ["/app/statemarketdeals"]
-# Start Stub integration which pushes fake tasks to the queue
-# CMD ["/app/filplus_integration"]
+RUN go build -o retrieval_worker ./pkg/cmd/retrieval_worker \
+    && go build -o graphsync_worker ./worker/graphsync/cmd \
+    && go build -o http_worker ./worker/http/cmd \
+    && go build -o bitswap_worker ./worker/bitswap/cmd
+
+FROM alpine
+WORKDIR /
+COPY --from=builder /app/retrieval_worker .
+COPY --from=builder /app/graphsync_worker .
+COPY --from=builder /app/http_worker .
+COPY --from=builder /app/bitswap_worker .
+CMD ["./retrieval_worker"]
