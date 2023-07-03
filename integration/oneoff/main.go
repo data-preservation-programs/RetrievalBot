@@ -1,37 +1,38 @@
 package main
 
 import (
-	"context"
-	"github.com/data-preservation-programs/RetrievalBot/pkg/convert"
-	"github.com/data-preservation-programs/RetrievalBot/pkg/env"
+	"fmt"
+	"github.com/data-preservation-programs/RetrievalBot/integration/filplus/util"
+	"github.com/data-preservation-programs/RetrievalBot/pkg/model"
+	"github.com/data-preservation-programs/RetrievalBot/pkg/model/rpc"
 	"github.com/data-preservation-programs/RetrievalBot/pkg/resolver"
 	"github.com/data-preservation-programs/RetrievalBot/pkg/task"
-	logging "github.com/ipfs/go-log/v2"
+	"github.com/data-preservation-programs/RetrievalBot/worker/bitswap"
+	"github.com/data-preservation-programs/RetrievalBot/worker/graphsync"
+	"github.com/data-preservation-programs/RetrievalBot/worker/http"
 	_ "github.com/joho/godotenv/autoload"
 	"github.com/pkg/errors"
 	"github.com/urfave/cli/v2"
-	"go.mongodb.org/mongo-driver/mongo"
-	"go.mongodb.org/mongo-driver/mongo/options"
+	"github.com/ybbus/jsonrpc/v3"
 	"os"
+	"strconv"
 	"time"
 )
 
-var logger = logging.Logger("oneoff-integration")
-
+//nolint:forbidigo,forcetypeassert,exhaustive
 func main() {
 	app := &cli.App{
 		Name:      "oneoff",
-		Usage:     "make a simple oneoff task",
-		ArgsUsage: "[module provider cid]",
+		Usage:     "make a simple oneoff task that works with filplus tests",
+		ArgsUsage: "providerID dealID",
 		Action: func(cctx *cli.Context) error {
-			ctx := context.Background()
-			taskClient, err := mongo.Connect(ctx, options.Client().ApplyURI(env.GetRequiredString(env.QueueMongoURI)))
+			ctx := cctx.Context
+			providerID := cctx.Args().Get(0)
+			dealIDStr := cctx.Args().Get(1)
+			dealID, err := strconv.ParseInt(dealIDStr, 10, 64)
 			if err != nil {
-				return errors.Wrap(err, "Cannot connect to mongo")
+				return errors.Wrap(err, "failed to parse dealID")
 			}
-			taskCollection := taskClient.Database(env.GetRequiredString(env.QueueMongoDatabase)).Collection("task_queue")
-			moduleName := cctx.Args().First()
-			providerID := cctx.Args().Get(1)
 			providerResolver, err := resolver.NewProviderResolver(
 				"https://api.node.glif.io/rpc/v0",
 				"",
@@ -47,43 +48,70 @@ func main() {
 			}
 
 			locationResolver := resolver.NewLocationResolver("", time.Minute)
-			location, err := locationResolver.ResolveMultiaddrsBytes(ctx, providerInfo.Multiaddrs)
+			_, err = locationResolver.ResolveMultiaddrsBytes(ctx, providerInfo.Multiaddrs)
 			if err != nil {
 				return errors.Wrap(err, "failed to resolve location")
 			}
 
-			cidStr := cctx.Args().Get(2)
-			tsk := task.Task{
-				Requester: "oneoff",
-				Module:    task.ModuleName(moduleName),
-				Metadata:  nil,
-				Provider: task.Provider{
-					ID:         providerID,
-					PeerID:     providerInfo.PeerId,
-					Multiaddrs: convert.MultiaddrsBytesToStringArraySkippingError(providerInfo.Multiaddrs),
-					City:       location.City,
-					Region:     location.Region,
-					Country:    location.Country,
-					Continent:  location.Continent,
-				},
-				Content: task.Content{
-					CID: cidStr,
-				},
-				CreatedAt: time.Now().UTC(),
-				Timeout:   10 * time.Second,
-			}
-			insertResult, err := taskCollection.InsertOne(ctx, tsk)
+			ipInfo, err := resolver.GetPublicIPInfo(ctx, "", "")
 			if err != nil {
-				logger.Errorf("failed to insert task: %s", err)
-			} else {
-				logger.Infof("inserted task with id: %s", insertResult.InsertedID)
+				panic(err)
 			}
 
+			lotusClient := jsonrpc.NewClient("https://api.node.glif.io")
+			var deal rpc.Deal
+			err = lotusClient.CallFor(ctx, &deal, "Filecoin.StateMarketStorageDeal", dealID, nil)
+			if err != nil {
+				return errors.Wrap(err, "failed to get deal")
+			}
+
+			dealStates := []model.DealState{
+				{
+					DealID:     int32(dealID),
+					PieceCID:   deal.Proposal.PieceCID.Root,
+					Label:      deal.Proposal.Label,
+					Verified:   deal.Proposal.VerifiedDeal,
+					Client:     deal.Proposal.Client,
+					Provider:   deal.Proposal.Provider,
+					Expiration: model.EpochToTime(deal.Proposal.EndEpoch),
+					PieceSize:  int64(deal.Proposal.PieceSize),
+					Start:      model.EpochToTime(deal.State.SectorStartEpoch),
+				},
+			}
+			tasks, results := util.AddTasks(ctx, "oneoff", ipInfo, dealStates, locationResolver, *providerResolver)
+			if len(results) > 0 {
+				fmt.Println("Errors encountered when creating tasks:")
+				for _, result := range results {
+					r := result.(task.Result)
+					fmt.Println(r)
+				}
+			}
+			if len(tasks) > 0 {
+				fmt.Println("Retrieval Test Results:")
+				for _, tsk := range tasks {
+					t := tsk.(task.Task)
+					var result *task.RetrievalResult
+					fmt.Printf(" -- Test %s --\n", t.Module)
+					switch t.Module {
+					case "graphsync":
+						result, err = graphsync.Worker{}.DoWork(t)
+					case "http":
+						result, err = http.Worker{}.DoWork(t)
+					case "bitswap":
+						result, err = bitswap.Worker{}.DoWork(t)
+					}
+					if err != nil {
+						fmt.Printf("Error: %s\n", err)
+					} else {
+						fmt.Printf("Success: %v\n", result)
+					}
+				}
+			}
 			return nil
 		},
 	}
 
 	if err := app.Run(os.Args); err != nil {
-		logger.Fatal(err)
+		panic(err)
 	}
 }

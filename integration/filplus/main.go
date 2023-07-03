@@ -30,6 +30,11 @@ func main() {
 	}
 }
 
+type TotalPerClient struct {
+	Client string `bson:"_id"`
+	Total  int64  `bson:"total"`
+}
+
 type FilPlusIntegration struct {
 	taskCollection        *mongo.Collection
 	marketDealsCollection *mongo.Collection
@@ -40,6 +45,38 @@ type FilPlusIntegration struct {
 	providerResolver      resolver.ProviderResolver
 	ipInfo                resolver.IPInfo
 	randConst             float64
+}
+
+func GetTotalPerClient(ctx context.Context, marketDealsCollection *mongo.Collection) (map[string]int64, error) {
+	var result []TotalPerClient
+	agg, err := marketDealsCollection.Aggregate(ctx, []bson.M{
+		{"$match": bson.M{
+			"expiration": bson.M{"$gt": time.Now().UTC()},
+		}},
+		{
+			"$group": bson.M{
+				"_id": "$client",
+				"total": bson.M{
+					"$sum": "$piece_size",
+				},
+			},
+		},
+	})
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to aggregate market deals")
+	}
+
+	err = agg.All(ctx, &result)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to decode market deals")
+	}
+
+	totalPerClient := make(map[string]int64)
+	for _, r := range result {
+		totalPerClient[r.Client] = r.Total
+	}
+
+	return totalPerClient, nil
 }
 
 func NewFilPlusIntegration() *FilPlusIntegration {
@@ -126,11 +163,15 @@ func (f *FilPlusIntegration) RunOnce(ctx context.Context) error {
 		return nil
 	}
 
+	totalPerClient, err := GetTotalPerClient(ctx, f.marketDealsCollection)
+	if err != nil {
+		return errors.Wrap(err, "failed to get total per client")
+	}
+
 	// Get random documents from state_market_deals that are still active and is verified
 	aggregateResult, err := f.marketDealsCollection.Aggregate(ctx, bson.A{
 		bson.M{"$sample": bson.M{"size": f.batchSize}},
 		bson.M{"$match": bson.M{
-			"verified":   true,
 			"expiration": bson.M{"$gt": time.Now().UTC()},
 		}},
 	})
@@ -145,7 +186,7 @@ func (f *FilPlusIntegration) RunOnce(ctx context.Context) error {
 		return errors.Wrap(err, "failed to decode documents")
 	}
 
-	documents = RandomObjects(documents, len(documents)/2, f.randConst)
+	documents = RandomObjects(documents, len(documents)/2, f.randConst, totalPerClient)
 	tasks, results := util.AddTasks(ctx, f.requester, f.ipInfo, documents, f.locationResolver, f.providerResolver)
 
 	if len(tasks) > 0 {

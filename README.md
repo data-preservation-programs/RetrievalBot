@@ -35,12 +35,6 @@ This integration periodically pulls the statemarketdeals.json from GLIP API and 
 ### FILPLUS Integration
 This integration pulls random active deals from StateMarketDeals database and push Bitswap/Graphsync/HTTP retrieval workitems into the work queue.
 
-### Oneoff Integration
-This integration push a single workitem into the queue with command line arguments, i.e.
-```shell
-./oneoff_integration http f0xxxx baxxxx
-```
-
 ## Get started
 1. Setup a mongodb server
 2. Setup a free ipinfo account and grab a token

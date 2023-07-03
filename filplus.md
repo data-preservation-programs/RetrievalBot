@@ -100,3 +100,16 @@ As part of the new HTTP retrieval push, we are proposing below changes to the HT
    picture of what types of files is this dataset composed of
 3. With less sampling rate, retrieve the whole file and store it in an online storage (i.e. web3.storage). The file can
    be downloaded by notary to check the content
+
+## Storage Provider Self-Testing
+It is possible to check how good you, as a storage provider is performing in terms of retrievability.
+
+You may run a one-off test with your storage provider by following below instruction:
+```
+go install github.com/data-preservation-programs/RetrievalBot/integration/oneoff@latest
+oneoff <providerID> <dealID>
+```
+
+This will fetch relevant information about your miner and the deal and run retrieval testing against all currently available protocols.
+
+The result will not be pushed to the reputation working group database.
