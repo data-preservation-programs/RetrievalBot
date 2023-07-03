@@ -5,6 +5,7 @@ import (
 	"github.com/bcicen/jstream"
 	"github.com/data-preservation-programs/RetrievalBot/pkg/env"
 	"github.com/data-preservation-programs/RetrievalBot/pkg/model"
+	"github.com/data-preservation-programs/RetrievalBot/pkg/model/rpc"
 	logging "github.com/ipfs/go-log/v2"
 	_ "github.com/joho/godotenv/autoload"
 	"github.com/klauspost/compress/zstd"
@@ -17,32 +18,6 @@ import (
 	"strconv"
 	"time"
 )
-
-type Deal struct {
-	Proposal DealProposal
-	State    DealState
-}
-
-type Cid struct {
-	Root string `json:"/" mapstructure:"/"`
-}
-
-type DealProposal struct {
-	PieceCID     Cid
-	PieceSize    uint64
-	VerifiedDeal bool
-	Client       string
-	Provider     string
-	Label        string
-	StartEpoch   int32
-	EndEpoch     int32
-}
-
-type DealState struct {
-	SectorStartEpoch int32
-	LastUpdatedEpoch int32
-	SlashEpoch       int32
-}
 
 var logger = logging.Logger("state-market-deals")
 
@@ -128,7 +103,7 @@ func refresh(ctx context.Context) error {
 			return errors.New("failed to get key value pair")
 		}
 
-		var deal Deal
+		var deal rpc.Deal
 		err = mapstructure.Decode(keyValuePair.Value, &deal)
 		if err != nil {
 			return errors.Wrap(err, "failed to decode deal")

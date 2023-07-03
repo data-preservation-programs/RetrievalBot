@@ -7,15 +7,23 @@ import (
 	"time"
 )
 
+func weight(obj model.DealState, c float64, totalPerClient map[string]int64) float64 {
+	total, ok := totalPerClient[obj.Client]
+	if !ok {
+		return 0
+	}
+	return math.Pow(c, -obj.AgeInYears()) * float64(obj.PieceSize) / math.Sqrt(float64(total))
+}
+
 // RandomObjects Select l random objects from x with probability c^(-x[i].AgeInYears()).
-func RandomObjects(x []model.DealState, l int, c float64) []model.DealState {
+func RandomObjects(x []model.DealState, l int, c float64, totalPerClient map[string]int64) []model.DealState {
 	// Initialize the random number generator.
 	rand.Seed(time.Now().UnixNano())
 
 	// Calculate the sum of C^age for all objects.
 	var sum float64
 	for _, obj := range x {
-		sum += math.Pow(c, -obj.AgeInYears())
+		sum += weight(obj, c, totalPerClient)
 	}
 
 	// Select Y random objects.
@@ -32,7 +40,7 @@ func RandomObjects(x []model.DealState, l int, c float64) []model.DealState {
 				// Skip objects that have already been selected.
 				continue
 			}
-			randNum -= math.Pow(c, -obj.AgeInYears())
+			randNum -= weight(obj, c, totalPerClient)
 			if randNum <= 0 {
 				// Add the current object to the selected list.
 				results = append(results, obj)
