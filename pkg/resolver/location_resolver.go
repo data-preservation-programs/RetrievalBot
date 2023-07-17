@@ -3,6 +3,12 @@ package resolver
 import (
 	"context"
 	"encoding/json"
+	"net"
+	"net/http"
+	"strconv"
+	"strings"
+	"time"
+
 	"github.com/data-preservation-programs/RetrievalBot/pkg/convert"
 	"github.com/data-preservation-programs/RetrievalBot/pkg/requesterror"
 	"github.com/data-preservation-programs/RetrievalBot/pkg/resources"
@@ -12,11 +18,6 @@ import (
 	"github.com/multiformats/go-multiaddr"
 	"github.com/pkg/errors"
 	"golang.org/x/exp/slices"
-	"net"
-	"net/http"
-	"strconv"
-	"strings"
-	"time"
 )
 
 //nolint:gochecknoglobals
@@ -129,7 +130,7 @@ func NewLocationResolver(ipInfoToken string, ttl time.Duration) LocationResolver
 
 func (l LocationResolver) ResolveIP(ctx context.Context, ip net.IP) (IPInfo, error) {
 	ipString := ip.String()
-	if ipInfo := l.cache.Get(ipString); ipInfo != nil {
+	if ipInfo := l.cache.Get(ipString); ipInfo != nil && !ipInfo.IsExpired() {
 		return ipInfo.Value(), nil
 	}
 
