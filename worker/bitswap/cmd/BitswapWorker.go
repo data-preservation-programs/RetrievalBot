@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+
 	"github.com/data-preservation-programs/RetrievalBot/pkg/task"
 	"github.com/data-preservation-programs/RetrievalBot/worker/bitswap"
 	logging "github.com/ipfs/go-log/v2"
@@ -18,6 +19,6 @@ func main() {
 
 	err = process.Poll(context.Background())
 	if err != nil {
-		logging.Logger("task-worker").With("protocol", task.HTTP).Error(err)
+		logging.Logger("task-worker").With("protocol", task.Bitswap).Error(err)
 	}
 }

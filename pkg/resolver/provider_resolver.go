@@ -3,12 +3,13 @@ package resolver
 import (
 	"context"
 	"encoding/base64"
+	"time"
+
 	"github.com/filecoin-project/go-state-types/abi"
 	logging "github.com/ipfs/go-log/v2"
 	"github.com/jellydator/ttlcache/v3"
 	"github.com/pkg/errors"
 	"github.com/ybbus/jsonrpc/v3"
-	"time"
 )
 
 type ProviderResolver struct {
@@ -47,7 +48,7 @@ func NewProviderResolver(url string, token string, ttl time.Duration) (*Provider
 
 func (p *ProviderResolver) ResolveProvider(ctx context.Context, provider string) (MinerInfo, error) {
 	logger := logging.Logger("location_resolver")
-	if minerInfo := p.cache.Get(provider); minerInfo != nil {
+	if minerInfo := p.cache.Get(provider); minerInfo != nil && !minerInfo.IsExpired() {
 		return minerInfo.Value(), nil
 	}
 
