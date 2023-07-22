@@ -1,6 +1,9 @@
 package main
 
 import (
+	"os"
+	"time"
+
 	"github.com/data-preservation-programs/RetrievalBot/integration/filplus/util"
 	"github.com/data-preservation-programs/RetrievalBot/pkg/env"
 	"github.com/data-preservation-programs/RetrievalBot/pkg/model"
@@ -13,8 +16,6 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
-	"os"
-	"time"
 )
 
 var logger = logging.Logger("spcoverage")
@@ -76,11 +77,11 @@ func run(c *cli.Context) error {
 
 	providerCacheTTL := env.GetDuration(env.ProviderCacheTTL, 24*time.Hour)
 	locationCacheTTL := env.GetDuration(env.LocationCacheTTL, 24*time.Hour)
-	locationResolver := resolver.NewLocationResolver(env.GetRequiredString(env.IPInfoToken), providerCacheTTL)
+	locationResolver := resolver.NewLocationResolver(env.GetRequiredString(env.IPInfoToken), locationCacheTTL)
 	providerResolver, err := resolver.NewProviderResolver(
 		env.GetString(env.LotusAPIUrl, "https://api.node.glif.io/rpc/v0"),
 		env.GetString(env.LotusAPIToken, ""),
-		locationCacheTTL)
+		providerCacheTTL)
 	if err != nil {
 		panic(err)
 	}
