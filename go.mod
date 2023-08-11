@@ -17,7 +17,6 @@ require (
 	github.com/ipfs/go-libipfs v0.6.1
 	github.com/ipfs/go-log/v2 v2.5.1
 	github.com/ipld/go-ipld-prime v0.20.1-0.20230329011551-5056175565b0
-	github.com/jellydator/ttlcache/v3 v3.0.1
 	github.com/joho/godotenv v1.5.1
 	github.com/klauspost/compress v1.16.0
 	github.com/libp2p/go-libp2p v0.26.4
@@ -34,6 +33,8 @@ require (
 	golang.org/x/exp v0.0.0-20230522175609-2e198f4a06a1
 	golang.org/x/xerrors v0.0.0-20220907171357-04be3eba64a2
 )
+
+require github.com/bradfitz/gomemcache v0.0.0-20230611145640-acc696258285 // indirect
 
 require (
 	contrib.go.opencensus.io/exporter/prometheus v0.4.2 // indirect
@@ -103,6 +104,7 @@ require (
 	github.com/jackpal/go-nat-pmp v1.0.2 // indirect
 	github.com/jbenet/go-temp-err-catcher v0.1.0 // indirect
 	github.com/jbenet/goprocess v0.1.4 // indirect
+	github.com/jellydator/ttlcache/v3 v3.0.1
 	github.com/jpillora/backoff v1.0.0 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
 	github.com/klauspost/cpuid/v2 v2.2.4 // indirect

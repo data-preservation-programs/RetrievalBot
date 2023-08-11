@@ -2,6 +2,10 @@ package main
 
 import (
 	"fmt"
+	"os"
+	"strconv"
+	"time"
+
 	"github.com/data-preservation-programs/RetrievalBot/integration/filplus/util"
 	"github.com/data-preservation-programs/RetrievalBot/pkg/model"
 	"github.com/data-preservation-programs/RetrievalBot/pkg/model/rpc"
@@ -14,9 +18,6 @@ import (
 	"github.com/pkg/errors"
 	"github.com/urfave/cli/v2"
 	"github.com/ybbus/jsonrpc/v3"
-	"os"
-	"strconv"
-	"time"
 )
 
 //nolint:forbidigo,forcetypeassert,exhaustive
@@ -37,6 +38,7 @@ func main() {
 				"https://api.node.glif.io/rpc/v0",
 				"",
 				time.Minute,
+				10,
 			)
 			if err != nil {
 				return errors.Wrap(err, "failed to create provider resolver")
@@ -47,7 +49,7 @@ func main() {
 				return errors.Wrap(err, "failed to resolve provider")
 			}
 
-			locationResolver := resolver.NewLocationResolver("", time.Minute)
+			locationResolver := resolver.NewLocationResolver("", time.Minute, 10)
 			_, err = locationResolver.ResolveMultiaddrsBytes(ctx, providerInfo.Multiaddrs)
 			if err != nil {
 				return errors.Wrap(err, "failed to resolve location")
