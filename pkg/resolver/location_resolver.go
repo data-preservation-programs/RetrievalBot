@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"math/rand"
 	"net"
 	"net/http"
 	"os"
@@ -117,7 +116,6 @@ func GetPublicIPInfo(ctx context.Context, ip string, token string) (IPInfo, erro
 
 type LocationResolver struct {
 	localCache  *ttlcache.Cache[string, IPInfo]
-	localCache  *ttlcache.Cache[string, IPInfo]
 	ipInfoToken string
 	remoteTTL   int
 }
@@ -130,19 +128,12 @@ type LocationCachePayload struct {
 
 func NewLocationResolver(ipInfoToken string, localTTL time.Duration, remoteTTL int) LocationResolver {
 	localCache := ttlcache.New[string, IPInfo](
-func NewLocationResolver(ipInfoToken string, localTTL time.Duration, remoteTTL int) LocationResolver {
-	localCache := ttlcache.New[string, IPInfo](
-		//nolint:gomnd
-		ttlcache.WithTTL[string, IPInfo](localTTL),
 		ttlcache.WithTTL[string, IPInfo](localTTL),
 		ttlcache.WithDisableTouchOnHit[string, IPInfo]())
 
-
 	return LocationResolver{
 		localCache,
-		localCache,
 		ipInfoToken,
-		remoteTTL,
 		remoteTTL,
 	}
 }
@@ -155,7 +146,10 @@ func (l LocationResolver) ResolveIP(ctx context.Context, ip net.IP) (IPInfo, err
 	}
 
 	if os.Getenv("IP_INFO_CACHE_URL") != "" {
-		response, _ := http.NewRequestWithContext(context.Background(), http.MethodGet, os.Getenv("IP_INFO_CACHE_URL")+"/getIpInfo?ip="+ipString, nil)
+		response, _ := http.NewRequest(
+			http.MethodGet,
+			os.Getenv("IP_INFO_CACHE_URL")+"/getIpInfo?ip="+ipString,
+			nil)
 		var ipInfo IPInfo
 		if response.Response.StatusCode == http.StatusOK && response.Body != nil {
 			err := json.NewDecoder(response.Body).Decode(&ipInfo)
@@ -183,7 +177,10 @@ func (l LocationResolver) ResolveIP(ctx context.Context, ip net.IP) (IPInfo, err
 		if err != nil {
 			return IPInfo{}, errors.Wrap(err, "Could not serialize IPInfo")
 		}
-		_, _ = http.NewRequestWithContext(context.Background(), http.MethodPost, os.Getenv("IP_INFO_CACHE_URL"), bytes.NewReader(requestBody))
+		_, _ = http.NewRequest(
+			http.MethodPost,
+			os.Getenv("IP_INFO_CACHE_URL"),
+			bytes.NewReader(requestBody))
 	}
 	return ipInfo, nil
 }

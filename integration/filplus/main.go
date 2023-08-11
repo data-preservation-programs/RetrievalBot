@@ -112,7 +112,10 @@ func NewFilPlusIntegration() *FilPlusIntegration {
 	remoteProviderCacheTTL := env.GetDuration(env.LocationCacheTTL, time.Duration((24 * time.Hour).Seconds()))
 	locationLocalCacheTTL := env.GetDuration(env.LocationCacheTTL, 24*time.Hour)
 	locationRemoteCacheTTL := env.GetDuration(env.LocationCacheTTL, time.Duration((24 * 7 * time.Hour).Seconds()))
-	locationResolver := resolver.NewLocationResolver(env.GetRequiredString(env.IPInfoToken), locationLocalCacheTTL, int(locationRemoteCacheTTL))
+	locationResolver := resolver.NewLocationResolver(
+		env.GetRequiredString(env.IPInfoToken),
+		locationLocalCacheTTL,
+		int(locationRemoteCacheTTL))
 	providerResolver, err := resolver.NewProviderResolver(
 		env.GetString(env.LotusAPIUrl, "https://api.node.glif.io/rpc/v0"),
 		env.GetString(env.LotusAPIToken, ""),

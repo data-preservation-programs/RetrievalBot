@@ -33,11 +33,10 @@ type MinerInfo struct {
 type ProviderCachePayload struct {
 	Provider        string `json:"provider"`
 	ProviderPayload []byte `json:"providerPayload"`
-	TTL             int    `json:"ttl" default:"3600"`
+	TTL             int    `json:"ttl"`
 }
 
 func NewProviderResolver(url string, token string, localTTL time.Duration, remoteTTL int) (*ProviderResolver, error) {
-
 	localCache := ttlcache.New[string, MinerInfo](
 		//nolint:gomnd
 		ttlcache.WithTTL[string, MinerInfo](localTTL),
@@ -68,12 +67,12 @@ func (p *ProviderResolver) ResolveProvider(ctx context.Context, provider string)
 	}
 
 	if os.Getenv("PROVIDER_CACHE_URL") != "" {
-		response, _ := http.NewRequestWithContext(context.Background(), http.MethodGet,
+		response, _ := http.NewRequest(http.MethodGet,
 			os.Getenv("PROVIDER_CACHE_URL")+"/getProviderInfo?provider="+provider, nil)
 
 		var minerInfo MinerInfo
 		if response.Response.StatusCode == http.StatusOK && response.Body != nil {
-			json.NewDecoder(response.Body).Decode(&minerInfo)
+			_ = json.NewDecoder(response.Body).Decode(&minerInfo)
 			return minerInfo, nil
 		}
 	}
@@ -108,7 +107,10 @@ func (p *ProviderResolver) ResolveProvider(ctx context.Context, provider string)
 			return MinerInfo{}, errors.Wrap(err, "Could not serialize MinerInfo")
 		}
 
-		_, _ = http.NewRequestWithContext(context.Background(), http.MethodPost, os.Getenv("PROVIDER_CACHE_URL"), bytes.NewReader(requestBody))
+		_, _ = http.NewRequest(
+			http.MethodPost,
+			os.Getenv("PROVIDER_CACHE_URL"),
+			bytes.NewReader(requestBody))
 	}
 
 	return *minerInfo, nil
