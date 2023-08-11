@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
-	"math/rand"
 	"net/http"
 	"os"
 	"time"
@@ -33,7 +32,7 @@ type MinerInfo struct {
 
 type ProviderCachePayload struct {
 	Provider        string `json:"provider"`
-	ProviderPayload []byte `json:"provider_payload"`
+	ProviderPayload []byte `json:"providerPayload"`
 	TTL             int    `json:"ttl" default:"3600"`
 }
 
@@ -68,7 +67,7 @@ func (p *ProviderResolver) ResolveProvider(ctx context.Context, provider string)
 		return minerInfo.Value(), nil
 	}
 
-	if os.Getenv("PROVIDER_CACHE_URL") != "" && rand.Intn(5) == 0 {
+	if os.Getenv("PROVIDER_CACHE_URL") != "" {
 		response, _ := http.NewRequestWithContext(context.Background(), http.MethodGet,
 			os.Getenv("PROVIDER_CACHE_URL")+"/getProviderInfo?provider="+provider, nil)
 
@@ -109,7 +108,7 @@ func (p *ProviderResolver) ResolveProvider(ctx context.Context, provider string)
 			return MinerInfo{}, errors.Wrap(err, "Could not serialize MinerInfo")
 		}
 
-		http.NewRequestWithContext(context.Background(), http.MethodPost, os.Getenv("PROVIDER_CACHE_URL"), bytes.NewReader(requestBody))
+		_, _ = http.NewRequestWithContext(context.Background(), http.MethodPost, os.Getenv("PROVIDER_CACHE_URL"), bytes.NewReader(requestBody))
 	}
 
 	return *minerInfo, nil
