@@ -75,17 +75,13 @@ func run(c *cli.Context) error {
 		Database(env.GetRequiredString(env.StatemarketdealsMongoDatabase)).
 		Collection("state_market_deals")
 
-	providerLocalCacheTTL := env.GetDuration(env.ProviderCacheTTL, 24*time.Hour)
-	remoteProviderCacheTTL := env.GetDuration(env.LocationCacheTTL, time.Duration((24 * time.Hour).Seconds()))
-	locationLocalCacheTTL := env.GetDuration(env.LocationCacheTTL, 24*time.Hour)
-	locationRemoteCacheTTL := env.GetDuration(env.LocationCacheTTL, time.Duration((24 * 7 * time.Hour).Seconds()))
-	locationResolver := resolver.NewLocationResolver(env.GetRequiredString(env.IPInfoToken), locationLocalCacheTTL, int(locationRemoteCacheTTL))
+	providerCacheTTL := env.GetDuration(env.ProviderCacheTTL, 24*time.Hour)
+	locationCacheTTL := env.GetDuration(env.LocationCacheTTL, 24*time.Hour)
+	locationResolver := resolver.NewLocationResolver(env.GetRequiredString(env.IPInfoToken), locationCacheTTL)
 	providerResolver, err := resolver.NewProviderResolver(
 		env.GetString(env.LotusAPIUrl, "https://api.node.glif.io/rpc/v0"),
 		env.GetString(env.LotusAPIToken, ""),
-		providerLocalCacheTTL,
-		int(remoteProviderCacheTTL))
-
+		providerCacheTTL)
 	if err != nil {
 		panic(err)
 	}

@@ -1,12 +1,8 @@
 package resolver
 
 import (
-	"bytes"
 	"context"
 	"encoding/base64"
-	"encoding/json"
-	"net/http"
-	"os"
 	"time"
 
 	"github.com/filecoin-project/go-state-types/abi"
@@ -17,9 +13,8 @@ import (
 )
 
 type ProviderResolver struct {
-	localCache  *ttlcache.Cache[string, MinerInfo]
+	cache       *ttlcache.Cache[string, MinerInfo]
 	lotusClient jsonrpc.RPCClient
-	remoteTTL   int
 }
 
 type MinerInfo struct {
@@ -30,19 +25,11 @@ type MinerInfo struct {
 	Multiaddrs              []abi.Multiaddrs
 }
 
-type ProviderCachePayload struct {
-	Provider        string `json:"provider"`
-	ProviderPayload []byte `json:"providerPayload"`
-	TTL             int    `json:"ttl" default:"3600"`
-}
-
-func NewProviderResolver(url string, token string, localTTL time.Duration, remoteTTL int) (*ProviderResolver, error) {
-
-	localCache := ttlcache.New[string, MinerInfo](
+func NewProviderResolver(url string, token string, ttl time.Duration) (*ProviderResolver, error) {
+	cache := ttlcache.New[string, MinerInfo](
 		//nolint:gomnd
-		ttlcache.WithTTL[string, MinerInfo](localTTL),
+		ttlcache.WithTTL[string, MinerInfo](ttl),
 		ttlcache.WithDisableTouchOnHit[string, MinerInfo]())
-
 	var lotusClient jsonrpc.RPCClient
 	if token == "" {
 		lotusClient = jsonrpc.NewClient(url)
@@ -54,28 +41,15 @@ func NewProviderResolver(url string, token string, localTTL time.Duration, remot
 		})
 	}
 	return &ProviderResolver{
-		localCache:  localCache,
+		cache:       cache,
 		lotusClient: lotusClient,
-		remoteTTL:   remoteTTL,
 	}, nil
 }
 
 func (p *ProviderResolver) ResolveProvider(ctx context.Context, provider string) (MinerInfo, error) {
 	logger := logging.Logger("location_resolver")
-
-	if minerInfo := p.localCache.Get(provider); minerInfo != nil && !minerInfo.IsExpired() {
+	if minerInfo := p.cache.Get(provider); minerInfo != nil && !minerInfo.IsExpired() {
 		return minerInfo.Value(), nil
-	}
-
-	if os.Getenv("PROVIDER_CACHE_URL") != "" {
-		response, _ := http.NewRequestWithContext(context.Background(), http.MethodGet,
-			os.Getenv("PROVIDER_CACHE_URL")+"/getProviderInfo?provider="+provider, nil)
-
-		var minerInfo MinerInfo
-		if response.Response.StatusCode == http.StatusOK && response.Body != nil {
-			json.NewDecoder(response.Body).Decode(&minerInfo)
-			return minerInfo, nil
-		}
 	}
 
 	logger.With("provider", provider).Debug("Getting miner info")
@@ -94,22 +68,7 @@ func (p *ProviderResolver) ResolveProvider(ctx context.Context, provider string)
 		}
 		minerInfo.Multiaddrs[i] = decoded
 	}
-
-	minerJSON, err := json.Marshal(minerInfo)
-	if err != nil {
-		return MinerInfo{}, errors.Wrap(err, "failed to get IP info")
-	}
-
-	p.localCache.Set(provider, *minerInfo, ttlcache.DefaultTTL)
-
-	if os.Getenv("PROVIDER_CACHE_URL") != "" {
-		requestBody, err := json.Marshal(LocationCachePayload{provider, minerJSON, p.remoteTTL})
-		if err != nil {
-			return MinerInfo{}, errors.Wrap(err, "Could not serialize MinerInfo")
-		}
-
-		_, _ = http.NewRequestWithContext(context.Background(), http.MethodPost, os.Getenv("PROVIDER_CACHE_URL"), bytes.NewReader(requestBody))
-	}
+	p.cache.Set(provider, *minerInfo, ttlcache.DefaultTTL)
 
 	return *minerInfo, nil
 }
