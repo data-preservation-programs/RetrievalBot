@@ -1,7 +1,6 @@
 package resolver
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"net"
@@ -65,9 +64,9 @@ func (i *IPInfo) Resolve() {
 
 func GetPublicIPInfo(ctx context.Context, ip string, token string) (IPInfo, error) {
 	logger := logging.Logger("location_resolver")
-	url := "https://ipinfo.io/json"
-	if ip != "" {
-		url = "https://ipinfo.io/" + ip + "/json"
+	url, exists := os.LookupEnv("IP_INFO_URL")
+	if !exists {
+		url = "https://ipinfo.io/"
 	}
 
 	if token != "" {
@@ -115,33 +114,24 @@ func GetPublicIPInfo(ctx context.Context, ip string, token string) (IPInfo, erro
 }
 
 type LocationResolver struct {
-	localCache  *ttlcache.Cache[string, IPInfo]
+	cache       *ttlcache.Cache[string, IPInfo]
 	ipInfoToken string
-	remoteTTL   int
 }
 
-type LocationCachePayload struct {
-	IP        string `json:"ip"`
-	IPPayload []byte `json:"ipPayload"`
-	RemoteTTL int    `json:"ttl"`
-}
-
-func NewLocationResolver(ipInfoToken string, localTTL time.Duration, remoteTTL int) LocationResolver {
-	localCache := ttlcache.New[string, IPInfo](
-		ttlcache.WithTTL[string, IPInfo](localTTL),
+func NewLocationResolver(ipInfoToken string, ttl time.Duration) LocationResolver {
+	cache := ttlcache.New[string, IPInfo](
+		//nolint:gomnd
+		ttlcache.WithTTL[string, IPInfo](ttl),
 		ttlcache.WithDisableTouchOnHit[string, IPInfo]())
-
 	return LocationResolver{
-		localCache,
+		cache,
 		ipInfoToken,
-		remoteTTL,
 	}
 }
 
 func (l LocationResolver) ResolveIP(ctx context.Context, ip net.IP) (IPInfo, error) {
 	ipString := ip.String()
-
-	if ipInfo := l.localCache.Get(ipString); ipInfo != nil && !ipInfo.IsExpired() {
+	if ipInfo := l.cache.Get(ipString); ipInfo != nil && !ipInfo.IsExpired() {
 		return ipInfo.Value(), nil
 	}
 
@@ -165,23 +155,8 @@ func (l LocationResolver) ResolveIP(ctx context.Context, ip net.IP) (IPInfo, err
 		return IPInfo{}, errors.Wrap(err, "failed to get IP info")
 	}
 
-	ipJSON, err := json.Marshal(ipInfo)
-	if err != nil {
-		return IPInfo{}, errors.Wrap(err, "failed to unmarshal IP info")
-	}
+	l.cache.Set(ipString, ipInfo, ttlcache.DefaultTTL)
 
-	l.localCache.Set(ipString, ipInfo, ttlcache.DefaultTTL)
-
-	if os.Getenv("IP_INFO_CACHE_URL") != "" {
-		requestBody, err := json.Marshal(LocationCachePayload{ipString, ipJSON, l.remoteTTL})
-		if err != nil {
-			return IPInfo{}, errors.Wrap(err, "Could not serialize IPInfo")
-		}
-		_, _ = http.NewRequest(
-			http.MethodPost,
-			os.Getenv("IP_INFO_CACHE_URL"),
-			bytes.NewReader(requestBody))
-	}
 	return ipInfo, nil
 }
 

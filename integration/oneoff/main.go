@@ -38,7 +38,6 @@ func main() {
 				"https://api.node.glif.io/rpc/v0",
 				"",
 				time.Minute,
-				10,
 			)
 			if err != nil {
 				return errors.Wrap(err, "failed to create provider resolver")
@@ -49,7 +48,7 @@ func main() {
 				return errors.Wrap(err, "failed to resolve provider")
 			}
 
-			locationResolver := resolver.NewLocationResolver("", time.Minute, 10)
+			locationResolver := resolver.NewLocationResolver("", time.Minute)
 			_, err = locationResolver.ResolveMultiaddrsBytes(ctx, providerInfo.Multiaddrs)
 			if err != nil {
 				return errors.Wrap(err, "failed to resolve location")
