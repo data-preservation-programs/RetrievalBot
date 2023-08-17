@@ -3,18 +3,21 @@ package resolver
 import (
 	"context"
 	"encoding/base64"
+	"encoding/json"
+	"net/http"
+	"net/rpc/jsonrpc"
 	"time"
 
 	"github.com/filecoin-project/go-state-types/abi"
 	logging "github.com/ipfs/go-log/v2"
 	"github.com/jellydator/ttlcache/v3"
 	"github.com/pkg/errors"
-	"github.com/ybbus/jsonrpc/v3"
 )
 
 type ProviderResolver struct {
-	cache       *ttlcache.Cache[string, MinerInfo]
-	lotusClient jsonrpc.RPCClient
+	cache *ttlcache.Cache[string, MinerInfo]
+	url   string
+	token string
 }
 
 type MinerInfo struct {
@@ -30,19 +33,20 @@ func NewProviderResolver(url string, token string, ttl time.Duration) (*Provider
 		//nolint:gomnd
 		ttlcache.WithTTL[string, MinerInfo](ttl),
 		ttlcache.WithDisableTouchOnHit[string, MinerInfo]())
-	var lotusClient jsonrpc.RPCClient
-	if token == "" {
-		lotusClient = jsonrpc.NewClient(url)
-	} else {
-		lotusClient = jsonrpc.NewClientWithOpts(url, &jsonrpc.RPCClientOpts{
-			CustomHeaders: map[string]string{
-				"Authorization": "Bearer " + token,
-			},
-		})
-	}
+	// var lotusClient jsonrpc.RPCClient
+	// if token == "" {
+	// 	lotusClient = jsonrpc.NewClient(url)
+	// } else {
+	// 	lotusClient = jsonrpc.NewClientWithOpts(url, &jsonrpc.RPCClientOpts{
+	// 		CustomHeaders: map[string]string{
+	// 			"Authorization": "Bearer " + token,
+	// 		},
+	// 	})
+	// }
 	return &ProviderResolver{
-		cache:       cache,
-		lotusClient: lotusClient,
+		cache: cache,
+		url:   url,
+		token: token,
 	}, nil
 }
 
@@ -51,10 +55,40 @@ func (p *ProviderResolver) ResolveProvider(ctx context.Context, provider string)
 	if minerInfo := p.cache.Get(provider); minerInfo != nil && !minerInfo.IsExpired() {
 		return minerInfo.Value(), nil
 	}
+	var lotusClient jsonrpc.RPCClient
+	// if token == "" {
+	lotusClient = jsonrpc.NewClient("test")
+	//logger.With("provider", provider).Debug("Getting miner info")
 
-	logger.With("provider", provider).Debug("Getting miner info")
-	minerInfo := new(MinerInfo)
-	err := p.lotusClient.CallFor(ctx, minerInfo, "Filecoin.StateMinerInfo", provider, nil)
+	url := p.url + "?provider=" + provider
+	if p.token != "" {
+		url = url + "&token=" + p.token
+	}
+
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return MinerInfo{}, errors.Wrap(err, "failed to create http request")
+	}
+
+	client := &http.Client{}
+	resp, err := client.Do(request)
+
+	if err != nil {
+		return MinerInfo{}, errors.Wrap(err, "failed to get miner info")
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return MinerInfo{}, errors.New("failed to get miner info: " + resp.Status)
+	}
+
+	var minerInfo MinerInfo
+	err = json.NewDecoder(resp.Body).Decode(&minerInfo)
+	if err != nil {
+		return MinerInfo{}, errors.Wrap(err, "failed to decode miner info")
+	}
+
+	//err := p.lotusClient.CallFor(ctx, minerInfo, "Filecoin.StateMinerInfo", provider, nil)
 	if err != nil {
 		return MinerInfo{}, errors.Wrap(err, "failed to get miner info")
 	}
@@ -68,7 +102,7 @@ func (p *ProviderResolver) ResolveProvider(ctx context.Context, provider string)
 		}
 		minerInfo.Multiaddrs[i] = decoded
 	}
-	p.cache.Set(provider, *minerInfo, ttlcache.DefaultTTL)
+	p.cache.Set(provider, minerInfo, ttlcache.DefaultTTL)
 
-	return *minerInfo, nil
+	return minerInfo, nil
 }
