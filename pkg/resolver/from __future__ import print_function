@@ -1,0 +1,50 @@
+from __future__ import print_function
+import time
+import uuid
+import sys
+import socket
+import elasticache_auto_discovery
+import json
+import urllib3
+from pymemcache.client.hash import HashClient
+
+#elasticache settings
+elasticache_config_endpoint = "retrievalbot-ipinfo-cache.odqg6r.0001.use2.cache.amazonaws.com:11211"
+nodes = elasticache_auto_discovery.discover(elasticache_config_endpoint)
+nodes = map(lambda x: (x[1], int(x[2])), nodes)
+
+memcache_client = HashClient(nodes)
+
+QUERY_STRING_PARAMETER = 'queryStringParameters'
+TOKEN_PARAMETER = 'token'
+PATH_PARAMETER = 'pathParameters'
+IP_PARAMETER = 'ip'
+print('bye')
+def lambda_handler(event, context):
+    print('hi')
+    print(event) 
+    ip = event[PATH_PARAMETER][IP_PARAMETER]
+    result = memcache_client.get(event[PATH_PARAMETER][IP_PARAMETER])
+    print(result)
+
+    url = "https://ipinfo.io/" + ip + "/json"
+
+    if QUERY_STRING_PARAMETER in event and event[QUERY_STRING_PARAMETER][TOKEN_PARAMETER] != "":
+        url = url + "?token=" + event[QUERY_STRING_PARAMETER][TOKEN_PARAMETER]
+
+
+
+
+    print(url)
+    http = urllib3.PoolManager()
+    ipJson = http.request('GET', url)
+    print(ipJson.data)
+    
+    memcache_client.set(ip, ipJson.data, int(604800)) # 604800 is 7 days in seconds
+    if ipJson is None: 
+        return {'statusCode': 404, 'body': json.dumps('Not found')}
+    
+    return {
+        'statusCode': 200,
+        'body': ipJson
+    }
