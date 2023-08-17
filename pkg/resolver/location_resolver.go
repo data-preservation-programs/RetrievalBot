@@ -67,9 +67,19 @@ func GetPublicIPInfo(ctx context.Context, ip string, token string) (IPInfo, erro
 	url, exists := os.LookupEnv("IPINFO_URL")
 	if !exists {
 		url = "https://ipinfo.io/"
+<<<<<<< HEAD
 	}
 	if ip != "" {
 		url = url + ip + "/json"
+=======
+		if ip != "" {
+			url = url + ip + "/json"
+		}
+	} else {
+		if ip != "" {
+			url = url + ip
+		}
+>>>>>>> 16f3eef (Adding support to point to an ipinfo cache)
 	}
 
 	if token != "" {
