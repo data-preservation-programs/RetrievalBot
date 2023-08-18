@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net"
 	"net/http"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -63,9 +64,12 @@ func (i *IPInfo) Resolve() {
 
 func GetPublicIPInfo(ctx context.Context, ip string, token string) (IPInfo, error) {
 	logger := logging.Logger("location_resolver")
-	url := "https://ipinfo.io/json"
+	url, exists := os.LookupEnv("IPINFO_URL")
+	if !exists {
+		url = "https://ipinfo.io/"
+	}
 	if ip != "" {
-		url = "https://ipinfo.io/" + ip + "/json"
+		url = url + ip + "/json"
 	}
 
 	if token != "" {
