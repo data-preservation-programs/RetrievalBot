@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"math"
 	"net/http"
 	"os"
 	"strings"
@@ -51,14 +52,35 @@ func main() {
 			sourcesStr := cctx.String("sources")
 			sources := strings.Split(sourcesStr, ",")
 
-			res, err := getCIDs(ctx, sources[0])
+			res, err := fetchActiveReplicas(ctx, sources[0])
 
 			if err != nil {
 				return err
 			}
 
-			fmt.Println(res.StateEpoch)
-			fmt.Println(res.ActiveReplicas[0].PieceCID)
+			var perProvider = make(map[int]ProviderReplicas)
+
+			for _, replica := range res.ActiveReplicas {
+				for _, contract := range replica.Contracts {
+					providerID := contract.ProviderID
+					size := 2 << replica.PieceLog2Size % 30 // Convert to GiB
+					perProvider[providerID] = ProviderReplicas{
+						size: perProvider[providerID].size + size,
+						replicas: append(perProvider[providerID].replicas, Replica{
+							PieceCID:        replica.PieceCID,
+							PieceLog2Size:   replica.PieceLog2Size,
+							OptionalDagRoot: replica.OptionalDagRoot,
+						}),
+					}
+				}
+			}
+
+			replicasToTest := selectReplicasToTest(perProvider)
+
+			for prov, rps := range replicasToTest {
+				fmt.Printf("Provider %d will have %d tests\n", prov, len(rps))
+
+			}
 
 			return nil
 		},
@@ -69,7 +91,7 @@ func main() {
 	}
 }
 
-func getCIDs(ctx context.Context, url string) (*ActiveReplicas, error) {
+func fetchActiveReplicas(ctx context.Context, url string) (*ActiveReplicas, error) {
 	logger.Debug("fetching CIDs from %s", url)
 
 	req, err := http.NewRequestWithContext(ctx,
@@ -113,16 +135,53 @@ func getCIDs(ctx context.Context, url string) (*ActiveReplicas, error) {
 	return &activeReplicas, nil
 }
 
+// Minimum 1, then log2 of the size in TiB
+// ex:
+// < 4Tib = 1 cid
+// 4 TiB - 16TiB = 2 cids
+// 16 TiB - 256 TiB = 3 cids
+// TODO: Revise
+func numCidsToTest(size int) int {
+	return int(math.Max(math.Log2(float64(size/1024)), 1))
+}
+
+func selectReplicasToTest(perProvider map[int]ProviderReplicas) map[int][]Replica {
+	var toTest = make(map[int][]Replica)
+
+	for providerID, provider := range perProvider {
+		toTest[providerID] = make([]Replica, 0)
+
+		maxReplicas := len(provider.replicas)
+		numCidsToTest := numCidsToTest(provider.size)
+
+		// TODO: Randomize
+		for i := 0; i < numCidsToTest && i < maxReplicas; i++ {
+			toTest[providerID] = append(toTest[providerID], provider.replicas[i])
+		}
+	}
+
+	return toTest
+}
+
+type ProviderReplicas struct {
+	size     int
+	replicas []Replica
+}
+
 type ActiveReplicas struct {
 	StateEpoch     uint            `json:"state_epoch"`
 	ActiveReplicas []ActiveReplica `json:"active_replicas"`
 }
 
 type ActiveReplica struct {
-	Contracts       []Contract `json:"contracts"`
-	PieceCID        string     `json:"piece_cid"`
-	PieceLog2Size   int        `json:"piece_log2_size"`
-	OptionalDagRoot string     `json:"optional_dag_root"`
+	Contracts []Contract `json:"contracts"`
+	Replica
+}
+
+type Replica struct {
+	PieceCID        string `json:"piece_cid"`
+	PieceLog2Size   int    `json:"piece_log2_size"`
+	OptionalDagRoot string `json:"optional_dag_root"`
 }
 
 type Contract struct {
