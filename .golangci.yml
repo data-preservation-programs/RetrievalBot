@@ -54,6 +54,7 @@ linters:
     - godot
     - depguard
     - nakedret
+    - govet
 
 linters-settings:
   revive:
