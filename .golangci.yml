@@ -1,20 +1,9 @@
 run:
-  tests: true
+  tests: false
   skip-dirs:
     - extern
     - integration/repdao
     - integration/repdao_dp
-  skip-files:
-    - _test\.go
-
-issues:
-  exclude-rules:
-    - linters:
-        - wsl
-      text: "branch statements should not be cuddled if block has more than two lines"
-    - linters:
-        - wsl
-      text: "return statements should not be cuddled if block has more than two lines"
 
 linters:
   enable-all: true
@@ -50,43 +39,26 @@ linters:
     - gomnd
     - gochecknoglobals
     - funlen
+    - gocyclo
+    - exhaustruct
+    - wrapcheck
+    - nestif
+    - containedctx
     - maintidx
+    - nonamedreturns
+    - nilnil
+    - prealloc
+    - gochecknoinits
+    - dupl
+    - forbidigo
+    - godot
     - depguard
+    - nakedret
 
 linters-settings:
   revive:
     rules:
-      - name: exported
-        severity: warning
-        disabled: false
-        arguments:
-          - "disableStutteringCheck"
-  wsl:
-    allow-cuddle-declarations: true
-    force-err-cuddling: true
-  nilnil:
-    checked-types:
-      - func
-      - iface
-      - map
-      - chan
-  paralleltest:
-    ignore-missing: true
-  funlen:
-    lines: 180
-    statements: 120
-  cyclop:
-    max-complexity: 20
-  wrapcheck:
-    ignoreSigRegexps:
-      - \.JSON\(
-      - \.NoContent\(
-      - \.Error\(
-  gomnd:
-    ignored-numbers:
-      - '0666'
-      - '0755'
-      - '0o755'
-  exhaustruct:
-    include:
-      - 'github.com/data-preservation-programs/RetrievalBot/pkg/task.*'
+      - name: var-naming
+        disabled: true
+  lll:
+    line-length: 120

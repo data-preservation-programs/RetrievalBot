@@ -2,6 +2,10 @@ package main
 
 import (
 	"context"
+	"net/http"
+	"strconv"
+	"time"
+
 	"github.com/bcicen/jstream"
 	"github.com/data-preservation-programs/RetrievalBot/pkg/env"
 	"github.com/data-preservation-programs/RetrievalBot/pkg/model"
@@ -14,9 +18,6 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
-	"net/http"
-	"strconv"
-	"time"
 )
 
 var logger = logging.Logger("state-market-deals")
