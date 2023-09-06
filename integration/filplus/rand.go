@@ -1,10 +1,10 @@
 package main
 
 import (
-	"github.com/data-preservation-programs/RetrievalBot/pkg/model"
 	"math"
 	"math/rand"
-	"time"
+
+	"github.com/data-preservation-programs/RetrievalBot/pkg/model"
 )
 
 func weight(obj model.DealState, c float64, totalPerClient map[string]int64) float64 {
@@ -17,9 +17,6 @@ func weight(obj model.DealState, c float64, totalPerClient map[string]int64) flo
 
 // RandomObjects Select l random objects from x with probability c^(-x[i].AgeInYears()).
 func RandomObjects(x []model.DealState, l int, c float64, totalPerClient map[string]int64) []model.DealState {
-	// Initialize the random number generator.
-	rand.Seed(time.Now().UnixNano())
-
 	// Calculate the sum of C^age for all objects.
 	var sum float64
 	for _, obj := range x {
