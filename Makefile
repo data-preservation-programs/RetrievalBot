@@ -13,4 +13,5 @@ build:
 
 lint:
 	gofmt -s -w .
-	golangci-lint run --timeout 10m
+	golangci-lint run --fix --timeout 10m
+	staticcheck ./...

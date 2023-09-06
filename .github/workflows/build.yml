@@ -13,19 +13,23 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
-      - name: Setup Golang with cache
-        uses: magnetikonline/action-golang-cache@v4
+      - name: Set up Go
+        uses: actions/setup-go@v4
         with:
-          go-version-file: go.mod
+          go-version: '1.20.x'
 
       - name: Build
         run: make build
 
-      - name: Install Lint
-        run: curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin v1.52.2
-
       - name: Lint
-        run: make lint
+        uses: golangci/golangci-lint-action@v3
+        with:
+          version: v1.53
+          args: --timeout=10m
+
+      - uses: dominikh/staticcheck-action@v1.3.0
+        with:
+          version: "2022.1.3"
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v2
