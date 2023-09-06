@@ -140,7 +140,7 @@ func fetchActiveReplicas(ctx context.Context, url string) (*ActiveReplicas, erro
 // < 4Tib = 1 cid
 // 4 TiB - 16TiB = 2 cids
 // 16 TiB - 256 TiB = 3 cids
-// TODO: Revise
+// TODO: Revise scaling as necessary
 func numCidsToTest(size int) int {
 	return int(math.Max(math.Log2(float64(size/1024)), 1))
 }
@@ -154,7 +154,7 @@ func selectReplicasToTest(perProvider map[int]ProviderReplicas) map[int][]Replic
 		maxReplicas := len(provider.replicas)
 		numCidsToTest := numCidsToTest(provider.size)
 
-		// TODO: Randomize
+		// TODO: Randomize which CIDs get selected
 		for i := 0; i < numCidsToTest && i < maxReplicas; i++ {
 			toTest[providerID] = append(toTest[providerID], provider.replicas[i])
 		}
