@@ -27,7 +27,7 @@ type Row struct {
 	Document model.DealState `bson:"document"`
 }
 
-func AddSpadeTasks(ctx context.Context, requester string, replicasToTest map[int]ProviderReplicas) error {
+func AddSpadeTasks(ctx context.Context, requester string, replicasToTest map[int][]Replica) error {
 	// Connect to the database
 	stateMarketDealsClient, err := mongo.
 		Connect(ctx, options.Client().ApplyURI(env.GetRequiredString(env.StatemarketdealsMongoURI)))
@@ -59,7 +59,7 @@ func AddSpadeTasks(ctx context.Context, requester string, replicasToTest map[int
 	for spid, replica := range replicasToTest {
 		// Get the relevant market deals for the given SP and replicas
 		//nolint:govet
-		pieceCids := underscore.Map(replica.replicas, func(r Replica) string {
+		pieceCids := underscore.Map(replica, func(r Replica) string {
 			return r.PieceCID
 		})
 

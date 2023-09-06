@@ -32,20 +32,6 @@ func main() {
 			},
 		},
 		Action: func(cctx *cli.Context) error {
-			// Pull CID list from Spade v0 endpoint, unmarshal
-
-			// Select top level CIDs to begin sampling
-			// * Balanced selection across SPs to ensure fair sampling
-
-			// Retrieve top level CIDs to get 2nd layer
-
-			// Select random CIDs from 2nd layer
-
-			// Retrieve 2nd layer CIDs
-
-			// Select random CIDs from 3rd layer
-			// Add retrieval tasks to DB for a sampling of CIDs from the 3rd layer
-
 			ctx := cctx.Context
 
 			// Extract the sources from the flag
@@ -79,9 +65,9 @@ func main() {
 
 			for prov, rps := range replicasToTest {
 				fmt.Printf("Provider %d will have %d tests\n", prov, len(rps))
-
 			}
 
+			AddSpadeTasks(ctx, "spadev0", replicasToTest)
 			return nil
 		},
 	}
