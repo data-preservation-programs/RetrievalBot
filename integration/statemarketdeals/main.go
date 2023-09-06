@@ -112,31 +112,31 @@ func refresh(ctx context.Context) error {
 			return errors.Wrap(err, "failed to decode deal")
 		}
 
-		dealID, err := strconv.ParseUint(keyValuePair.Key, 10, 64)
+		dealID, err := strconv.ParseUint(keyValuePair.Key, 10, 32)
 		if err != nil {
 			return errors.Wrap(err, "failed to convert deal id to int")
 		}
 
 		newDeal := model.DealState{
-			DealID:      dealID,
+			DealID:      int32(dealID),
 			PieceCID:    deal.Proposal.PieceCID.Root,
-			PieceSize:   int64(deal.Proposal.PieceSize),
+			PieceSize:   deal.Proposal.PieceSize,
 			Label:       deal.Proposal.Label,
 			Verified:    deal.Proposal.VerifiedDeal,
 			Client:      deal.Proposal.Client,
 			Provider:    deal.Proposal.Provider,
-			Expiration:  model.EpochToTime(deal.Proposal.EndEpoch),
-			Start:       model.EpochToTime(deal.State.SectorStartEpoch),
-			Slashed:     model.EpochToTime(deal.State.SlashEpoch),
-			LastUpdated: model.EpochToTime(deal.State.LastUpdatedEpoch),
+			Start:       deal.Proposal.StartEpoch,
+			End:         deal.Proposal.EndEpoch,
+			SectorStart: deal.State.SectorStartEpoch,
+			Slashed:     deal.State.SlashEpoch,
+			LastUpdated: deal.State.LastUpdatedEpoch,
 		}
 		// If the deal exists but the last_updated has changed, update it
 		existing, ok := dealIDSet[int32(dealID)]
 		if ok {
-			lastUpdated := model.EpochToTime(deal.State.LastUpdatedEpoch)
-			if model.EpochToTime(deal.State.LastUpdatedEpoch).After(existing.LastUpdated) {
+			if deal.State.LastUpdatedEpoch > existing.LastUpdated {
 				logger.With("deal_id", dealID).
-					Debugf("updating deal as lastUpdated Changed from %s to %s", existing.LastUpdated, lastUpdated)
+					Debugf("updating deal as lastUpdated Changed from %d to %d", existing.LastUpdated, deal.State.LastUpdatedEpoch)
 				updateCount += 1
 				result, err := collection.ReplaceOne(ctx, bson.D{{"_id", existing.ID}}, newDeal)
 				if err != nil {
@@ -155,6 +155,8 @@ func refresh(ctx context.Context) error {
 			Debug("inserting deal state into mongo")
 
 		if len(dealBatch) == batchSize {
+			logger.With("last", dealID).
+				Infof("inserting %d deal state into mongo", batchSize)
 			_, err := collection.InsertMany(ctx, dealBatch)
 			if err != nil {
 				return errors.Wrap(err, "failed to insert deal into mongo")
@@ -166,6 +168,7 @@ func refresh(ctx context.Context) error {
 	}
 
 	if len(dealBatch) > 0 {
+		logger.Infof("inserting %d deal state into mongo", len(dealBatch))
 		_, err := collection.InsertMany(ctx, dealBatch)
 		if err != nil {
 			return errors.Wrap(err, "failed to insert deal into mongo")

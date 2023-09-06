@@ -24,7 +24,7 @@ func RandomObjects(x []model.DealState, l int, c float64, totalPerClient map[str
 	}
 
 	// Select Y random objects.
-	selected := make(map[uint64]bool)
+	selected := make(map[int32]bool)
 	var results []model.DealState
 	for i := 0; i < l; i++ {
 		// Generate a random number between 0 and the sum.

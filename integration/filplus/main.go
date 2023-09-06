@@ -52,7 +52,10 @@ func GetTotalPerClient(ctx context.Context, marketDealsCollection *mongo.Collect
 	var result []TotalPerClient
 	agg, err := marketDealsCollection.Aggregate(ctx, []bson.M{
 		{"$match": bson.M{
-			"expiration": bson.M{"$gt": time.Now().UTC()},
+			"sector_start": bson.M{"$gt": 0},
+			"end":          bson.M{"$gt": model.TimeToEpoch(time.Now())},
+			"verified":     true,
+			"slashed":      bson.M{"$lt": 0},
 		}},
 		{
 			"$group": bson.M{
@@ -173,7 +176,10 @@ func (f *FilPlusIntegration) RunOnce(ctx context.Context) error {
 	aggregateResult, err := f.marketDealsCollection.Aggregate(ctx, bson.A{
 		bson.M{"$sample": bson.M{"size": f.batchSize}},
 		bson.M{"$match": bson.M{
-			"expiration": bson.M{"$gt": time.Now().UTC()},
+			"sector_start": bson.M{"$gt": 0},
+			"end":          bson.M{"$gt": model.TimeToEpoch(time.Now())},
+			"verified":     true,
+			"slashed":      bson.M{"$lt": 0},
 		}},
 	})
 
