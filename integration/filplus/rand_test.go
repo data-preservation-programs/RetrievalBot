@@ -1,10 +1,11 @@
 package main
 
 import (
-	"github.com/data-preservation-programs/RetrievalBot/pkg/model"
-	"github.com/stretchr/testify/assert"
 	"testing"
 	"time"
+
+	"github.com/data-preservation-programs/RetrievalBot/pkg/model"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestWeight(t *testing.T) {
@@ -67,7 +68,7 @@ func TestRandomObjects(t *testing.T) {
 	selected := RandomObjects(objects, 15, 2.0, map[string]int64{"a": 1})
 
 	// Check that the selected objects are distinct.
-	selectedMap := make(map[int32]bool)
+	selectedMap := make(map[uint64]bool)
 	for _, obj := range selected {
 		if selectedMap[obj.DealID] {
 			t.Errorf("Selected duplicate object with deal id %d", obj.DealID)

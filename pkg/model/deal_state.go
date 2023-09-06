@@ -1,21 +1,29 @@
 package model
 
-import "time"
+import (
+	"time"
+
+	"go.mongodb.org/mongo-driver/bson/primitive"
+)
 
 type DealState struct {
-	DealID     int32     `bson:"deal_id"`
-	PieceCID   string    `bson:"piece_cid"`
-	PieceSize  int64     `bson:"piece_size"`
-	Label      string    `bson:"label"`
-	Verified   bool      `bson:"verified"`
-	Client     string    `bson:"client"`
-	Provider   string    `bson:"provider"`
-	Expiration time.Time `bson:"expiration"`
-	Start      time.Time `bson:"start"`
+	DealID      uint64    `bson:"deal_id"`
+	PieceCID    string    `bson:"piece_cid"`
+	PieceSize   int64     `bson:"piece_size"`
+	Label       string    `bson:"label"`
+	Verified    bool      `bson:"verified"`
+	Client      string    `bson:"client"`
+	Provider    string    `bson:"provider"`
+	Expiration  time.Time `bson:"expiration"`
+	Start       time.Time `bson:"start"`
+	Slashed     time.Time `bson:"slashed"`
+	LastUpdated time.Time `bson:"last_updated"`
 }
 
-type DealID struct {
-	DealID int32 `bson:"deal_id"`
+type DealIDLastUpdated struct {
+	ID          primitive.ObjectID `bson:"_id"`
+	DealID      int32              `bson:"deal_id"`
+	LastUpdated time.Time          `bson:"last_updated"`
 }
 
 func EpochToTime(epoch int32) time.Time {

@@ -2,6 +2,10 @@ package main
 
 import (
 	"fmt"
+	"os"
+	"strconv"
+	"time"
+
 	"github.com/data-preservation-programs/RetrievalBot/integration/filplus/util"
 	"github.com/data-preservation-programs/RetrievalBot/pkg/model"
 	"github.com/data-preservation-programs/RetrievalBot/pkg/model/rpc"
@@ -14,9 +18,6 @@ import (
 	"github.com/pkg/errors"
 	"github.com/urfave/cli/v2"
 	"github.com/ybbus/jsonrpc/v3"
-	"os"
-	"strconv"
-	"time"
 )
 
 //nolint:forbidigo,forcetypeassert,exhaustive
@@ -29,7 +30,7 @@ func main() {
 			ctx := cctx.Context
 			providerID := cctx.Args().Get(0)
 			dealIDStr := cctx.Args().Get(1)
-			dealID, err := strconv.ParseInt(dealIDStr, 10, 64)
+			dealID, err := strconv.ParseUint(dealIDStr, 10, 64)
 			if err != nil {
 				return errors.Wrap(err, "failed to parse dealID")
 			}
@@ -67,7 +68,7 @@ func main() {
 
 			dealStates := []model.DealState{
 				{
-					DealID:     int32(dealID),
+					DealID:     dealID,
 					PieceCID:   deal.Proposal.PieceCID.Root,
 					Label:      deal.Proposal.Label,
 					Verified:   deal.Proposal.VerifiedDeal,

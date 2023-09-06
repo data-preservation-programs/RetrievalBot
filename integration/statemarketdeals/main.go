@@ -49,22 +49,23 @@ func refresh(ctx context.Context) error {
 		Collection("state_market_deals")
 
 	logger.Info("getting deal ids from mongo")
-	dealIDCursor, err := collection.Find(ctx, bson.D{}, options.Find().SetProjection(bson.M{"deal_id": 1, "_id": 0}))
+	dealIDCursor, err := collection.Find(ctx, bson.D{}, options.Find().
+		SetProjection(bson.M{"deal_id": 1, "_id": 1, "last_updated": 1}))
 	if err != nil {
 		return errors.Wrap(err, "failed to get deal ids")
 	}
 
 	defer dealIDCursor.Close(ctx)
-	var dealIds []model.DealID
+	var dealIds []model.DealIDLastUpdated
 	err = dealIDCursor.All(ctx, &dealIds)
 	if err != nil {
 		return errors.Wrap(err, "failed to retrieve all deal ids")
 	}
 
 	logger.Infof("retrieved %d deal ids", len(dealIds))
-	dealIDSet := make(map[int32]struct{})
+	dealIDSet := make(map[int32]model.DealIDLastUpdated, len(dealIds))
 	for _, dealID := range dealIds {
-		dealIDSet[dealID.DealID] = struct{}{}
+		dealIDSet[dealID.DealID] = dealID
 	}
 
 	logger.Info("getting deals from state market deals")
@@ -95,7 +96,8 @@ func refresh(ctx context.Context) error {
 	defer decompressor.Close()
 
 	jsonDecoder := jstream.NewDecoder(decompressor, 1).EmitKV()
-	count := 0
+	insertCount := 0
+	updateCount := 0
 	dealBatch := make([]interface{}, 0, batchSize)
 	for stream := range jsonDecoder.Stream() {
 		keyValuePair, ok := stream.Value.(jstream.KV)
@@ -110,50 +112,56 @@ func refresh(ctx context.Context) error {
 			return errors.Wrap(err, "failed to decode deal")
 		}
 
-		// Skip the deal if the deal is not active yet
-		if deal.State.SectorStartEpoch <= 0 {
-			continue
-		}
-
-		// Skip the deal if the deal has already expired
-		if model.EpochToTime(deal.Proposal.EndEpoch).Unix() <= time.Now().Unix() {
-			continue
-		}
-
-		dealID, err := strconv.Atoi(keyValuePair.Key)
+		dealID, err := strconv.ParseUint(keyValuePair.Key, 10, 64)
 		if err != nil {
 			return errors.Wrap(err, "failed to convert deal id to int")
 		}
 
-		// Insert into mongo if the deal is not in mongo
-		//nolint:gosec
-		if _, ok := dealIDSet[int32(dealID)]; !ok {
-			dealState := model.DealState{
-				//nolint:gosec
-				DealID:     int32(dealID),
-				PieceCID:   deal.Proposal.PieceCID.Root,
-				Label:      deal.Proposal.Label,
-				Verified:   deal.Proposal.VerifiedDeal,
-				Client:     deal.Proposal.Client,
-				Provider:   deal.Proposal.Provider,
-				Expiration: model.EpochToTime(deal.Proposal.EndEpoch),
-				PieceSize:  int64(deal.Proposal.PieceSize),
-				Start:      model.EpochToTime(deal.State.SectorStartEpoch),
-			}
-
-			dealBatch = append(dealBatch, dealState)
-			logger.With("deal_id", dealID).
-				Debug("inserting deal state into mongo")
-
-			if len(dealBatch) == batchSize {
-				_, err := collection.InsertMany(ctx, dealBatch)
+		newDeal := model.DealState{
+			DealID:      dealID,
+			PieceCID:    deal.Proposal.PieceCID.Root,
+			PieceSize:   int64(deal.Proposal.PieceSize),
+			Label:       deal.Proposal.Label,
+			Verified:    deal.Proposal.VerifiedDeal,
+			Client:      deal.Proposal.Client,
+			Provider:    deal.Proposal.Provider,
+			Expiration:  model.EpochToTime(deal.Proposal.EndEpoch),
+			Start:       model.EpochToTime(deal.State.SectorStartEpoch),
+			Slashed:     model.EpochToTime(deal.State.SlashEpoch),
+			LastUpdated: model.EpochToTime(deal.State.LastUpdatedEpoch),
+		}
+		// If the deal exists but the last_updated has changed, update it
+		existing, ok := dealIDSet[int32(dealID)]
+		if ok {
+			lastUpdated := model.EpochToTime(deal.State.LastUpdatedEpoch)
+			if model.EpochToTime(deal.State.LastUpdatedEpoch).After(existing.LastUpdated) {
+				logger.With("deal_id", dealID).
+					Debugf("updating deal as lastUpdated Changed from %s to %s", existing.LastUpdated, lastUpdated)
+				updateCount += 1
+				result, err := collection.ReplaceOne(ctx, bson.D{{"_id", existing.ID}}, newDeal)
 				if err != nil {
-					return errors.Wrap(err, "failed to insert deal into mongo")
+					return errors.Wrap(err, "failed to update deal")
 				}
-
-				count += len(dealBatch)
-				dealBatch = make([]interface{}, 0, batchSize)
+				if result.MatchedCount == 0 {
+					return errors.Errorf("failed to update deal: %d", dealID)
+				}
 			}
+			continue
+		}
+
+		// Insert into mongo as the deal is not in mongo
+		dealBatch = append(dealBatch, newDeal)
+		logger.With("deal_id", dealID).
+			Debug("inserting deal state into mongo")
+
+		if len(dealBatch) == batchSize {
+			_, err := collection.InsertMany(ctx, dealBatch)
+			if err != nil {
+				return errors.Wrap(err, "failed to insert deal into mongo")
+			}
+
+			insertCount += len(dealBatch)
+			dealBatch = make([]interface{}, 0, batchSize)
 		}
 	}
 
@@ -163,21 +171,13 @@ func refresh(ctx context.Context) error {
 			return errors.Wrap(err, "failed to insert deal into mongo")
 		}
 
-		count += len(dealBatch)
+		insertCount += len(dealBatch)
 	}
 
-	logger.With("count", count).Info("finished inserting deals into mongo")
+	logger.With("count", insertCount, "update", updateCount).Info("finished inserting deals into mongo")
 	if jsonDecoder.Err() != nil {
 		logger.With("position", jsonDecoder.Pos()).Warn("prematurely reached end of json stream")
 		return errors.Wrap(jsonDecoder.Err(), "failed to decode json further")
 	}
-
-	// Finally, remove all expired deals from mongo
-	deleteResult, err := collection.DeleteMany(ctx, bson.M{"expiration": bson.M{"$lt": time.Now()}})
-	if err != nil {
-		return errors.Wrap(err, "failed to delete expired deals")
-	}
-
-	logger.With("count", deleteResult.DeletedCount).Info("finished deleting expired deals from mongo")
 	return nil
 }
