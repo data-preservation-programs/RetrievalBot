@@ -1,20 +1,21 @@
 package main
 
 import (
-	"github.com/data-preservation-programs/RetrievalBot/pkg/model"
-	"github.com/stretchr/testify/assert"
 	"testing"
 	"time"
+
+	"github.com/data-preservation-programs/RetrievalBot/pkg/model"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestWeight(t *testing.T) {
-	now := time.Now()
+	now := model.TimeToEpoch(time.Now())
 	objects := []model.DealState{
-		{DealID: 1, Start: now, PieceSize: 100, Client: "a"},
-		{DealID: 2, Start: now, PieceSize: 200, Client: "a"},
-		{DealID: 3, Start: time.Now().Add(-24 * 365 * time.Hour), PieceSize: 100, Client: "a"},
-		{DealID: 4, Start: now, PieceSize: 100, Client: "b"},
-		{DealID: 5, Start: now, PieceSize: 100, Client: "c"},
+		{DealID: 1, SectorStart: now, PieceSize: 100, Client: "a"},
+		{DealID: 2, SectorStart: now, PieceSize: 200, Client: "a"},
+		{DealID: 3, SectorStart: model.TimeToEpoch(time.Now().Add(-24 * 365 * time.Hour)), PieceSize: 100, Client: "a"},
+		{DealID: 4, SectorStart: now, PieceSize: 100, Client: "b"},
+		{DealID: 5, SectorStart: now, PieceSize: 100, Client: "c"},
 	}
 	clients := map[string]int64{
 		"a": 16,
@@ -31,36 +32,36 @@ func TestWeight(t *testing.T) {
 func TestRandomObjects(t *testing.T) {
 	// Create a list of MyObject.
 	objects := []model.DealState{
-		{DealID: 1, Start: time.Now(), PieceSize: 1, Client: "a"},
-		{DealID: 2, Start: time.Now(), PieceSize: 1, Client: "a"},
-		{DealID: 3, Start: time.Now(), PieceSize: 1, Client: "a"},
-		{DealID: 4, Start: time.Now(), PieceSize: 1, Client: "a"},
-		{DealID: 5, Start: time.Now(), PieceSize: 1, Client: "a"},
-		{DealID: 6, Start: time.Now(), PieceSize: 1, Client: "a"},
-		{DealID: 7, Start: time.Now(), PieceSize: 1, Client: "a"},
-		{DealID: 8, Start: time.Now(), PieceSize: 1, Client: "a"},
-		{DealID: 9, Start: time.Now(), PieceSize: 1, Client: "a"},
-		{DealID: 10, Start: time.Now(), PieceSize: 1, Client: "a"},
-		{DealID: 11, Start: time.Now().Add(-24 * 365 * time.Hour), PieceSize: 1, Client: "a"},
-		{DealID: 12, Start: time.Now().Add(-24 * 365 * time.Hour), PieceSize: 1, Client: "a"},
-		{DealID: 13, Start: time.Now().Add(-24 * 365 * time.Hour), PieceSize: 1, Client: "a"},
-		{DealID: 14, Start: time.Now().Add(-24 * 365 * time.Hour), PieceSize: 1, Client: "a"},
-		{DealID: 15, Start: time.Now().Add(-24 * 365 * time.Hour), PieceSize: 1, Client: "a"},
-		{DealID: 16, Start: time.Now().Add(-24 * 365 * time.Hour), PieceSize: 1, Client: "a"},
-		{DealID: 17, Start: time.Now().Add(-24 * 365 * time.Hour), PieceSize: 1, Client: "a"},
-		{DealID: 18, Start: time.Now().Add(-24 * 365 * time.Hour), PieceSize: 1, Client: "a"},
-		{DealID: 19, Start: time.Now().Add(-24 * 365 * time.Hour), PieceSize: 1, Client: "a"},
-		{DealID: 20, Start: time.Now().Add(-24 * 365 * time.Hour), PieceSize: 1, Client: "a"},
-		{DealID: 21, Start: time.Now().Add(-2 * 24 * 365 * time.Hour), PieceSize: 1, Client: "a"},
-		{DealID: 22, Start: time.Now().Add(-2 * 24 * 365 * time.Hour), PieceSize: 1, Client: "a"},
-		{DealID: 23, Start: time.Now().Add(-2 * 24 * 365 * time.Hour), PieceSize: 1, Client: "a"},
-		{DealID: 24, Start: time.Now().Add(-2 * 24 * 365 * time.Hour), PieceSize: 1, Client: "a"},
-		{DealID: 25, Start: time.Now().Add(-2 * 24 * 365 * time.Hour), PieceSize: 1, Client: "a"},
-		{DealID: 26, Start: time.Now().Add(-2 * 24 * 365 * time.Hour), PieceSize: 1, Client: "a"},
-		{DealID: 27, Start: time.Now().Add(-2 * 24 * 365 * time.Hour), PieceSize: 1, Client: "a"},
-		{DealID: 28, Start: time.Now().Add(-2 * 24 * 365 * time.Hour), PieceSize: 1, Client: "a"},
-		{DealID: 29, Start: time.Now().Add(-2 * 24 * 365 * time.Hour), PieceSize: 1, Client: "a"},
-		{DealID: 30, Start: time.Now().Add(-2 * 24 * 365 * time.Hour), PieceSize: 1, Client: "a"},
+		{DealID: 1, SectorStart: model.TimeToEpoch(time.Now()), PieceSize: 1, Client: "a"},
+		{DealID: 2, SectorStart: model.TimeToEpoch(time.Now()), PieceSize: 1, Client: "a"},
+		{DealID: 3, SectorStart: model.TimeToEpoch(time.Now()), PieceSize: 1, Client: "a"},
+		{DealID: 4, SectorStart: model.TimeToEpoch(time.Now()), PieceSize: 1, Client: "a"},
+		{DealID: 5, SectorStart: model.TimeToEpoch(time.Now()), PieceSize: 1, Client: "a"},
+		{DealID: 6, SectorStart: model.TimeToEpoch(time.Now()), PieceSize: 1, Client: "a"},
+		{DealID: 7, SectorStart: model.TimeToEpoch(time.Now()), PieceSize: 1, Client: "a"},
+		{DealID: 8, SectorStart: model.TimeToEpoch(time.Now()), PieceSize: 1, Client: "a"},
+		{DealID: 9, SectorStart: model.TimeToEpoch(time.Now()), PieceSize: 1, Client: "a"},
+		{DealID: 10, SectorStart: model.TimeToEpoch(time.Now()), PieceSize: 1, Client: "a"},
+		{DealID: 11, SectorStart: model.TimeToEpoch(time.Now().Add(-24 * 365 * time.Hour)), PieceSize: 1, Client: "a"},
+		{DealID: 12, SectorStart: model.TimeToEpoch(time.Now().Add(-24 * 365 * time.Hour)), PieceSize: 1, Client: "a"},
+		{DealID: 13, SectorStart: model.TimeToEpoch(time.Now().Add(-24 * 365 * time.Hour)), PieceSize: 1, Client: "a"},
+		{DealID: 14, SectorStart: model.TimeToEpoch(time.Now().Add(-24 * 365 * time.Hour)), PieceSize: 1, Client: "a"},
+		{DealID: 15, SectorStart: model.TimeToEpoch(time.Now().Add(-24 * 365 * time.Hour)), PieceSize: 1, Client: "a"},
+		{DealID: 16, SectorStart: model.TimeToEpoch(time.Now().Add(-24 * 365 * time.Hour)), PieceSize: 1, Client: "a"},
+		{DealID: 17, SectorStart: model.TimeToEpoch(time.Now().Add(-24 * 365 * time.Hour)), PieceSize: 1, Client: "a"},
+		{DealID: 18, SectorStart: model.TimeToEpoch(time.Now().Add(-24 * 365 * time.Hour)), PieceSize: 1, Client: "a"},
+		{DealID: 19, SectorStart: model.TimeToEpoch(time.Now().Add(-24 * 365 * time.Hour)), PieceSize: 1, Client: "a"},
+		{DealID: 20, SectorStart: model.TimeToEpoch(time.Now().Add(-24 * 365 * time.Hour)), PieceSize: 1, Client: "a"},
+		{DealID: 21, SectorStart: model.TimeToEpoch(time.Now().Add(-2 * 24 * 365 * time.Hour)), PieceSize: 1, Client: "a"},
+		{DealID: 22, SectorStart: model.TimeToEpoch(time.Now().Add(-2 * 24 * 365 * time.Hour)), PieceSize: 1, Client: "a"},
+		{DealID: 23, SectorStart: model.TimeToEpoch(time.Now().Add(-2 * 24 * 365 * time.Hour)), PieceSize: 1, Client: "a"},
+		{DealID: 24, SectorStart: model.TimeToEpoch(time.Now().Add(-2 * 24 * 365 * time.Hour)), PieceSize: 1, Client: "a"},
+		{DealID: 25, SectorStart: model.TimeToEpoch(time.Now().Add(-2 * 24 * 365 * time.Hour)), PieceSize: 1, Client: "a"},
+		{DealID: 26, SectorStart: model.TimeToEpoch(time.Now().Add(-2 * 24 * 365 * time.Hour)), PieceSize: 1, Client: "a"},
+		{DealID: 27, SectorStart: model.TimeToEpoch(time.Now().Add(-2 * 24 * 365 * time.Hour)), PieceSize: 1, Client: "a"},
+		{DealID: 28, SectorStart: model.TimeToEpoch(time.Now().Add(-2 * 24 * 365 * time.Hour)), PieceSize: 1, Client: "a"},
+		{DealID: 29, SectorStart: model.TimeToEpoch(time.Now().Add(-2 * 24 * 365 * time.Hour)), PieceSize: 1, Client: "a"},
+		{DealID: 30, SectorStart: model.TimeToEpoch(time.Now().Add(-2 * 24 * 365 * time.Hour)), PieceSize: 1, Client: "a"},
 	}
 
 	// Select 5 random objects with C = 2.

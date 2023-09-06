@@ -95,9 +95,12 @@ func run(c *cli.Context) error {
 	// Get all CIDs for the given SPs
 	//nolint:govet
 	result, err := marketDealsCollection.Aggregate(ctx, mongo.Pipeline{
-		{{"$match", bson.D{
-			{"provider", bson.D{{"$in", sp}}},
-			{"expiration", bson.D{{"$gt", time.Now()}}},
+		{{"$match", bson.M{
+			"sector_start": bson.M{"$gt": 0},
+			"end":          bson.M{"$gt": model.TimeToEpoch(time.Now())},
+			"verified":     true,
+			"slashed":      bson.M{"$lt": 0},
+			"provider":     bson.M{"$in": sp},
 		}}},
 		{{"$group", bson.D{
 			{"_id", bson.D{{"provider", "$provider"}, {"piece_cid", "$piece_cid"}}},
