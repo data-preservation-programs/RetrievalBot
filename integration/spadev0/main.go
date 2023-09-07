@@ -6,8 +6,10 @@ import (
 	"fmt"
 	"io/ioutil"
 	"math"
+	"math/rand"
 	"net/http"
 	"os"
+	"time"
 
 	logging "github.com/ipfs/go-log/v2"
 	_ "github.com/joho/godotenv/autoload"
@@ -120,12 +122,12 @@ func fetchActiveReplicas(ctx context.Context, url string) (*ActiveReplicas, erro
 	return &activeReplicas, nil
 }
 
+// Compute a number of CIDs to test, based on the total size of data (assuming in GiB)
 // Minimum 1, then log2 of the size in TiB
 // ex:
 // < 4Tib = 1 cid
 // 4 TiB - 16TiB = 2 cids
 // 16 TiB - 256 TiB = 3 cids
-// TODO: Revise scaling as necessary
 func numCidsToTest(size int) int {
 	return int(math.Max(math.Log2(float64(size/1024)), 1))
 }
@@ -139,9 +141,18 @@ func selectReplicasToTest(perProvider map[int]ProviderReplicas) map[int][]Replic
 		maxReplicas := len(provider.replicas)
 		numCidsToTest := numCidsToTest(provider.size)
 
-		// TODO: Randomize which CIDs get selected
-		for i := 0; i < numCidsToTest && i < maxReplicas; i++ {
-			toTest[providerID] = append(toTest[providerID], provider.replicas[i])
+		// This condition should not happen, but just in case there's a situation
+		// where a massive amount of bytes are being stored in relatively few CIDs
+		if numCidsToTest > maxReplicas {
+			numCidsToTest = maxReplicas
+		}
+
+		// Randomize which CIDs are selected
+		rand.Seed(time.Now().UnixNano())
+		indices := rand.Perm(maxReplicas)[:numCidsToTest]
+
+		for _, index := range indices {
+			toTest[providerID] = append(toTest[providerID], provider.replicas[index])
 		}
 	}
 
