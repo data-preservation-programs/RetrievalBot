@@ -4,7 +4,6 @@ import (
 	"context"
 	"net/http"
 	"strconv"
-	"time"
 
 	"github.com/bcicen/jstream"
 	"github.com/data-preservation-programs/RetrievalBot/pkg/env"
@@ -24,15 +23,9 @@ var logger = logging.Logger("state-market-deals")
 
 func main() {
 	ctx := context.Background()
-	interval := env.GetDuration(env.StatemarketdealsInterval, 6*time.Hour)
-	for {
-		err := refresh(ctx)
-		if err != nil {
-			logger.Error(err)
-		}
-
-		logger.With("interval", interval).Info("sleeping")
-		time.Sleep(interval)
+	err := refresh(ctx)
+	if err != nil {
+		logger.Error(err)
 	}
 }
 
@@ -56,16 +49,16 @@ func refresh(ctx context.Context) error {
 	}
 
 	defer dealIDCursor.Close(ctx)
-	var dealIds []model.DealIDLastUpdated
-	err = dealIDCursor.All(ctx, &dealIds)
-	if err != nil {
-		return errors.Wrap(err, "failed to retrieve all deal ids")
-	}
 
-	logger.Infof("retrieved %d deal ids", len(dealIds))
-	dealIDSet := make(map[int32]model.DealIDLastUpdated, len(dealIds))
-	for _, dealID := range dealIds {
-		dealIDSet[dealID.DealID] = dealID
+	dealIDSet := make(map[int32]model.DealIDLastUpdated)
+	for dealIDCursor.Next(ctx) {
+		var deal model.DealIDLastUpdated
+		err = dealIDCursor.Decode(&deal)
+		if err != nil {
+			return errors.Wrap(err, "failed to decode deal id")
+		}
+
+		dealIDSet[deal.DealID] = deal
 	}
 
 	logger.Info("getting deals from state market deals")
