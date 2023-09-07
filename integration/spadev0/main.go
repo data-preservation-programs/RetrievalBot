@@ -26,7 +26,7 @@ func main() {
 		Flags: []cli.Flag{
 			&cli.StringSliceFlag{
 				Name:        "sources",
-				DefaultText: "https://source-1/replicas.json.zst,https://source-2/replicas.json.zst",
+				DefaultText: "http://src-1/replicas.json.zst,http://src-2/replicas.json.zst",
 				Usage:       "comma-separated list of sources to fetch replica list from",
 				Required:    true,
 			},
@@ -37,41 +37,42 @@ func main() {
 			// Extract the sources from the flag
 			sources := cctx.StringSlice("sources")
 
-			// TODO: support more than one - for now just takes the first one
-			res, err := fetchActiveReplicas(ctx, sources[0])
+			for _, source := range sources {
+				res, err := fetchActiveReplicas(ctx, source)
 
-			if err != nil {
-				return err
-			}
+				if err != nil {
+					return err
+				}
 
-			var perProvider = make(map[int]ProviderReplicas)
+				var perProvider = make(map[int]ProviderReplicas)
 
-			for _, replica := range res.ActiveReplicas {
-				for _, contract := range replica.Contracts {
-					providerID := contract.ProviderID
-					size := 2 << replica.PieceLog2Size % 30 // Convert to GiB
-					perProvider[providerID] = ProviderReplicas{
-						size: perProvider[providerID].size + size,
-						replicas: append(perProvider[providerID].replicas, Replica{
-							PieceCID:        replica.PieceCID,
-							PieceLog2Size:   replica.PieceLog2Size,
-							OptionalDagRoot: replica.OptionalDagRoot,
-						}),
+				for _, replica := range res.ActiveReplicas {
+					for _, contract := range replica.Contracts {
+						providerID := contract.ProviderID
+						size := 2 << replica.PieceLog2Size % 30 // Convert to GiB
+						perProvider[providerID] = ProviderReplicas{
+							size: perProvider[providerID].size + size,
+							replicas: append(perProvider[providerID].replicas, Replica{
+								PieceCID:        replica.PieceCID,
+								PieceLog2Size:   replica.PieceLog2Size,
+								OptionalDagRoot: replica.OptionalDagRoot,
+							}),
+						}
 					}
 				}
+
+				replicasToTest := selectReplicasToTest(perProvider)
+
+				totalCids := 0
+				for prov, rps := range replicasToTest {
+					logger.Debugf("provider %d will have %d tests\n", prov, len(rps))
+					totalCids += len(rps)
+				}
+
+				logger.Debugf("total %d cids will be tested for %d providers\n", totalCids, len(replicasToTest))
+
+				AddSpadeTasks(ctx, "spadev0", replicasToTest)
 			}
-
-			replicasToTest := selectReplicasToTest(perProvider)
-
-			totalCids := 0
-			for prov, rps := range replicasToTest {
-				logger.Debugf("provider %d will have %d tests\n", prov, len(rps))
-				totalCids += len(rps)
-			}
-
-			logger.Debugf("total %d cids will be tested for %d providers\n", totalCids, len(replicasToTest))
-
-			AddSpadeTasks(ctx, "spadev0", replicasToTest)
 			return nil
 		},
 	}

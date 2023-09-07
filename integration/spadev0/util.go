@@ -18,6 +18,7 @@ import (
 func AddSpadeTasks(ctx context.Context, requester string, replicasToTest map[int][]Replica) error {
 	var tasks []interface{}
 	var results []interface{}
+
 	// set up cache and resolvers
 	providerCacheTTL := env.GetDuration(env.ProviderCacheTTL, 24*time.Hour)
 	locationCacheTTL := env.GetDuration(env.LocationCacheTTL, 24*time.Hour)
@@ -39,10 +40,7 @@ func AddSpadeTasks(ctx context.Context, requester string, replicasToTest map[int
 
 	// For each SPID, assemble retrieval tasks for it
 	for spid, replicas := range replicasToTest {
-		// Get the relevant market deals for the given SP and replicas
-		//nolint:govet
 		strSpid := fmt.Sprintf("f0%d", spid)
-
 		t, r := prepareTasksForSP(ctx, requester, strSpid, ipInfo, replicas, locationResolver, *providerResolver)
 
 		tasks = append(tasks, t)
@@ -85,8 +83,7 @@ func AddSpadeTasks(ctx context.Context, requester string, replicasToTest map[int
 
 var spadev0Metadata map[string]string = map[string]string{
 	"retrieve_type": "spade",
-	// todo: specify # of cids to test per layer of the tree
-	// "retrieve_size": "1048576",
+	// todo: specify # of cids to test per layer of the tree TBD
 }
 
 func prepareTasksForSP(
@@ -113,7 +110,6 @@ func prepareTasksForSP(
 			errors.As(err, &requesterror.HostLookupError{}) ||
 			errors.As(err, &requesterror.NoValidMultiAddrError{}) {
 
-			// TODO: addErrorResults
 			results = addErrorResults(requester, ipInfo, results, spid, providerInfo, location,
 				task.NoValidMultiAddrs, err.Error())
 		} else {
