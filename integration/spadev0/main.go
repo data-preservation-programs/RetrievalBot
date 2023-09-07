@@ -22,7 +22,7 @@ var logger = logging.Logger("spade-v0-tasks")
 func main() {
 	app := &cli.App{
 		Name:  "spadev0",
-		Usage: "run spade v0 CID sampling task",
+		Usage: "run spade v0 replica task generation",
 		Flags: []cli.Flag{
 			&cli.StringSliceFlag{
 				Name:        "sources",
@@ -33,7 +33,6 @@ func main() {
 		},
 		Action: func(cctx *cli.Context) error {
 			ctx := cctx.Context
-
 			// logging.SetLogLevel("spade-v0-tasks", "DEBUG")
 
 			// Extract the sources from the flag
@@ -51,7 +50,7 @@ func main() {
 				for _, replica := range res.ActiveReplicas {
 					for _, contract := range replica.Contracts {
 						providerID := contract.ProviderID
-						size := 2 << replica.PieceLog2Size % 30 // Convert to GiB
+						size := (1 << replica.PieceLog2Size) >> 30 // Convert to GiB
 						perProvider[providerID] = ProviderReplicas{
 							size: perProvider[providerID].size + size,
 							replicas: append(perProvider[providerID].replicas, Replica{
@@ -65,6 +64,7 @@ func main() {
 
 				replicasToTest := selectReplicasToTest(perProvider)
 
+				// Debug output - no functional purposes
 				totalCids := 0
 				totalSize := 0
 				for prov, rps := range replicasToTest {
@@ -73,10 +73,12 @@ func main() {
 					totalCids += len(rps)
 					totalSize += provider.size
 				}
-
 				logger.Debugf("total %d CIDs will be tested for %d providers\n", totalCids, len(replicasToTest))
 
-				AddSpadeTasks(ctx, "spadev0", replicasToTest)
+				err = AddSpadeTasks(ctx, "spadev0", replicasToTest)
+				if err != nil {
+					logger.Errorf("failed to add tasks: %s", err)
+				}
 			}
 			return nil
 		},
@@ -121,7 +123,6 @@ func fetchActiveReplicas(ctx context.Context, url string) (*ActiveReplicas, erro
 		return nil, errors.Wrap(err, "failed to read decompressed data")
 	}
 
-	// Unmarshal the JSON data into your struct
 	var activeReplicas ActiveReplicas
 	err = json.Unmarshal(data, &activeReplicas)
 	if err != nil {
@@ -141,8 +142,8 @@ func fetchActiveReplicas(ctx context.Context, url string) (*ActiveReplicas, erro
 // 64 TiB - 128 TiB = 5 cids
 // 128 TiB - 256 TiB = 6 cids
 // etc...
-func numCidsToTest(size int) int {
-	return int(math.Max(math.Log2(float64(size/1024)), 1))
+func numCidsToTest(sizeGiB int) int {
+	return int(math.Max(math.Log2(float64(sizeGiB/1024)), 1))
 }
 
 func selectReplicasToTest(perProvider map[int]ProviderReplicas) map[int][]Replica {
@@ -157,6 +158,7 @@ func selectReplicasToTest(perProvider map[int]ProviderReplicas) map[int][]Replic
 		// This condition should not happen, but just in case there's a situation
 		// where a massive amount of bytes are being stored in relatively few CIDs
 		if numCidsToTest > maxReplicas {
+			logger.Warnf("provider %d only has %d replicas, but we are trying to test %d", providerID, maxReplicas, numCidsToTest)
 			numCidsToTest = maxReplicas
 		}
 
