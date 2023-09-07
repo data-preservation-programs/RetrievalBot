@@ -8,7 +8,6 @@ import (
 	"math"
 	"net/http"
 	"os"
-	"strings"
 
 	logging "github.com/ipfs/go-log/v2"
 	_ "github.com/joho/godotenv/autoload"
@@ -24,7 +23,7 @@ func main() {
 		Name:  "spadev0",
 		Usage: "run spade v0 CID sampling task",
 		Flags: []cli.Flag{
-			&cli.StringFlag{
+			&cli.StringSliceFlag{
 				Name:        "sources",
 				DefaultText: "https://source-1/replicas.json.zst,https://source-2/replicas.json.zst",
 				Usage:       "comma-separated list of sources to fetch replica list from",
@@ -35,9 +34,9 @@ func main() {
 			ctx := cctx.Context
 
 			// Extract the sources from the flag
-			sourcesStr := cctx.String("sources")
-			sources := strings.Split(sourcesStr, ",")
+			sources := cctx.StringSlice("sources")
 
+			// TODO: support more than one - for now just takes the first one
 			res, err := fetchActiveReplicas(ctx, sources[0])
 
 			if err != nil {

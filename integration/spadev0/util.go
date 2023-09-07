@@ -2,42 +2,23 @@ package main
 
 import (
 	"context"
-	"strconv"
+	"fmt"
 	"time"
 
 	"github.com/data-preservation-programs/RetrievalBot/pkg/convert"
 	"github.com/data-preservation-programs/RetrievalBot/pkg/env"
-	"github.com/data-preservation-programs/RetrievalBot/pkg/model"
 	"github.com/data-preservation-programs/RetrievalBot/pkg/requesterror"
 	"github.com/data-preservation-programs/RetrievalBot/pkg/resolver"
 	"github.com/data-preservation-programs/RetrievalBot/pkg/task"
 	"github.com/pkg/errors"
-	"github.com/rjNemo/underscore"
-	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
-type GroupID struct {
-	Provider string `bson:"provider"`
-	PieceCID string `bson:"piece_cid"`
-}
-type Row struct {
-	ID       GroupID         `bson:"_id"`
-	Document model.DealState `bson:"document"`
-}
-
 func AddSpadeTasks(ctx context.Context, requester string, replicasToTest map[int][]Replica) error {
-	// Connect to the database
-	stateMarketDealsClient, err := mongo.
-		Connect(ctx, options.Client().ApplyURI(env.GetRequiredString(env.StatemarketdealsMongoURI)))
-	if err != nil {
-		panic(err)
-	}
-	marketDealsCollection := stateMarketDealsClient.
-		Database(env.GetRequiredString(env.StatemarketdealsMongoDatabase)).
-		Collection("state_market_deals")
-
+	var tasks []interface{}
+	var results []interface{}
+	// set up cache and resolvers
 	providerCacheTTL := env.GetDuration(env.ProviderCacheTTL, 24*time.Hour)
 	locationCacheTTL := env.GetDuration(env.LocationCacheTTL, 24*time.Hour)
 	locationResolver := resolver.NewLocationResolver(env.GetRequiredString(env.IPInfoToken), locationCacheTTL)
@@ -48,6 +29,7 @@ func AddSpadeTasks(ctx context.Context, requester string, replicasToTest map[int
 	if err != nil {
 		panic(err)
 	}
+
 	// Check public IP address
 	ipInfo, err := resolver.GetPublicIPInfo(ctx, "", "")
 	if err != nil {
@@ -55,89 +37,99 @@ func AddSpadeTasks(ctx context.Context, requester string, replicasToTest map[int
 	}
 	logger.With("ipinfo", ipInfo).Infof("Public IP info retrieved")
 
-	// For each SPID, grab the market deals for its CIDs and then add tasks
-	for spid, replica := range replicasToTest {
+	// For each SPID, assemble retrieval tasks for it
+	for spid, replicas := range replicasToTest {
 		// Get the relevant market deals for the given SP and replicas
 		//nolint:govet
-		pieceCids := underscore.Map(replica, func(r Replica) string {
-			return r.PieceCID
-		})
+		strSpid := fmt.Sprintf("f0%d", spid)
 
-		result, err := marketDealsCollection.Aggregate(ctx, mongo.Pipeline{
-			{{"$match", bson.D{
-				{"provider", bson.D{{"$in", spid}}},
-				{"piece_cid", bson.D{{"$in", pieceCids}}},
-				{"expiration", bson.D{{"$gt", time.Now()}}},
-			}}},
-			{{"$group", bson.D{
-				{"_id", bson.D{{"provider", "$provider"}, {"piece_cid", "$piece_cid"}}},
-				{"document", bson.D{{"$first", "$$ROOT"}}},
-			}}},
-		})
-		if err != nil {
-			return errors.Wrap(err, "failed to query market deals")
-		}
-		var rows []Row
-		err = result.All(ctx, &rows)
-		if err != nil {
-			return errors.Wrap(err, "failed to decode market deals")
-		}
+		t, r := prepareTasksForSP(ctx, requester, strSpid, ipInfo, replicas, locationResolver, *providerResolver)
 
-		logger.Infow("Market deals retrieved", "count", len(rows))
-		documents := underscore.Map(rows, func(row Row) model.DealState {
-			return row.Document
-		})
-
-		prepareSpadeTasks(ctx, requester, ipInfo, documents, locationResolver, *providerResolver)
+		tasks = append(tasks, t)
+		results = append(results, r)
 	}
 
-	// TODO: Write the tasks out to database
+	// Write resulting tasks and results to the DB
+	taskClient, err := mongo.
+		Connect(ctx, options.Client().ApplyURI(env.GetRequiredString(env.QueueMongoURI)))
+	if err != nil {
+		panic(err)
+	}
+	taskCollection := taskClient.
+		Database(env.GetRequiredString(env.QueueMongoDatabase)).Collection("task_queue")
+
+	if len(tasks) > 0 {
+		_, err = taskCollection.InsertMany(ctx, tasks)
+		if err != nil {
+			return errors.Wrap(err, "failed to insert tasks")
+		}
+	}
+
+	resultClient, err := mongo.Connect(ctx, options.Client().ApplyURI(env.GetRequiredString(env.ResultMongoURI)))
+	if err != nil {
+		panic(err)
+	}
+	resultCollection := resultClient.
+		Database(env.GetRequiredString(env.ResultMongoDatabase)).
+		Collection("task_result")
+
+	if len(results) > 0 {
+		_, err = resultCollection.InsertMany(ctx, results)
+		if err != nil {
+			return errors.Wrap(err, "failed to insert results")
+		}
+	}
+
 	return nil
 }
 
-func prepareSpadeTasks(
+var spadev0Metadata map[string]string = map[string]string{
+	"retrieve_type": "spade",
+	// todo: specify # of cids to test per layer of the tree
+	// "retrieve_size": "1048576",
+}
+
+func prepareTasksForSP(
 	ctx context.Context,
 	requester string,
+	spid string,
 	ipInfo resolver.IPInfo,
-	documents []model.DealState,
+	replicas []Replica,
 	locationResolver resolver.LocationResolver,
 	providerResolver resolver.ProviderResolver,
 ) (tasks []interface{}, results []interface{}) {
-	for _, document := range documents {
-		providerInfo, err := providerResolver.ResolveProvider(ctx, document.Provider)
-		if err != nil {
-			logger.With("provider", document.Provider, "deal_id", document.DealID).
-				Error("failed to resolve provider")
-			continue
+
+	providerInfo, err := providerResolver.ResolveProvider(ctx, spid)
+	if err != nil {
+		logger.With("provider", spid).
+			Error("failed to resolve provider")
+		return
+	}
+
+	location, err := locationResolver.ResolveMultiaddrsBytes(ctx, providerInfo.Multiaddrs)
+	if err != nil {
+		if errors.As(err, &requesterror.BogonIPError{}) ||
+			errors.As(err, &requesterror.InvalidIPError{}) ||
+			errors.As(err, &requesterror.HostLookupError{}) ||
+			errors.As(err, &requesterror.NoValidMultiAddrError{}) {
+
+			// TODO: addErrorResults
+			results = addErrorResults(requester, ipInfo, results, spid, providerInfo, location,
+				task.NoValidMultiAddrs, err.Error())
+		} else {
+			logger.With("provider", spid, "err", err).
+				Error("failed to resolve provider location")
+			return
 		}
+	}
 
-		location, err := locationResolver.ResolveMultiaddrsBytes(ctx, providerInfo.Multiaddrs)
-		if err != nil {
-			if errors.As(err, &requesterror.BogonIPError{}) ||
-				errors.As(err, &requesterror.InvalidIPError{}) ||
-				errors.As(err, &requesterror.HostLookupError{}) ||
-				errors.As(err, &requesterror.NoValidMultiAddrError{}) {
-
-				// TODO: addErrorResults
-				// results = addErrorResults(requester, ipInfo, results, document, providerInfo, location,
-				// 	task.NoValidMultiAddrs, err.Error())
-			} else {
-				logger.With("provider", document.Provider, "deal_id", document.DealID, "err", err).
-					Error("failed to resolve provider location")
-			}
-			continue
-		}
-
+	for _, document := range replicas {
 		tasks = append(tasks, task.Task{
 			Requester: requester,
 			Module:    task.HTTP, // TODO: Bitswap
-			Metadata: map[string]string{
-				"deal_id":       strconv.Itoa(int(document.DealID)),
-				"client":        document.Client,
-				"retrieve_type": "spade",
-				"retrieve_size": "1048576"},
+			Metadata:  spadev0Metadata,
 			Provider: task.Provider{
-				ID:         document.Provider,
+				ID:         spid,
 				PeerID:     providerInfo.PeerId,
 				Multiaddrs: convert.MultiaddrsBytesToStringArraySkippingError(providerInfo.Multiaddrs),
 				City:       location.City,
@@ -154,4 +146,55 @@ func prepareSpadeTasks(
 	}
 
 	return tasks, results
+}
+
+func addErrorResults(
+	requester string,
+	ipInfo resolver.IPInfo,
+	results []interface{},
+	spid string,
+	providerInfo resolver.MinerInfo,
+	location resolver.IPInfo,
+	errorCode task.ErrorCode,
+	errorMessage string,
+) []interface{} {
+	results = append(results, task.Result{
+		Task: task.Task{
+			Requester: requester,
+			Module:    "spadev0",
+			Metadata:  spadev0Metadata,
+			Provider: task.Provider{
+				ID:         spid,
+				PeerID:     providerInfo.PeerId,
+				Multiaddrs: convert.MultiaddrsBytesToStringArraySkippingError(providerInfo.Multiaddrs),
+				City:       location.City,
+				Region:     location.Region,
+				Country:    location.Country,
+				Continent:  location.Continent,
+			},
+			CreatedAt: time.Now().UTC(),
+			Timeout:   env.GetDuration(env.FilplusIntegrationTaskTimeout, 15*time.Second)},
+		Retriever: task.Retriever{
+			PublicIP:  ipInfo.IP,
+			City:      ipInfo.City,
+			Region:    ipInfo.Region,
+			Country:   ipInfo.Country,
+			Continent: ipInfo.Continent,
+			ASN:       ipInfo.ASN,
+			ISP:       ipInfo.ISP,
+			Latitude:  ipInfo.Latitude,
+			Longitude: ipInfo.Longitude,
+		},
+		Result: task.RetrievalResult{
+			Success:      false,
+			ErrorCode:    errorCode,
+			ErrorMessage: errorMessage,
+			TTFB:         0,
+			Speed:        0,
+			Duration:     0,
+			Downloaded:   0,
+		},
+		CreatedAt: time.Now().UTC(),
+	})
+	return results
 }
