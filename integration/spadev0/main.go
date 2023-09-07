@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"io/ioutil"
 	"math"
 	"math/rand"
@@ -64,9 +63,13 @@ func main() {
 
 			replicasToTest := selectReplicasToTest(perProvider)
 
+			totalCids := 0
 			for prov, rps := range replicasToTest {
-				fmt.Printf("Provider %d will have %d tests\n", prov, len(rps))
+				logger.Debugf("provider %d will have %d tests\n", prov, len(rps))
+				totalCids += len(rps)
 			}
+
+			logger.Debugf("total %d cids will be tested for %d providers\n", totalCids, len(replicasToTest))
 
 			AddSpadeTasks(ctx, "spadev0", replicasToTest)
 			return nil
@@ -79,7 +82,7 @@ func main() {
 }
 
 func fetchActiveReplicas(ctx context.Context, url string) (*ActiveReplicas, error) {
-	logger.Debug("fetching CIDs from %s", url)
+	logger.Debugf("fetching CIDs from %s", url)
 
 	req, err := http.NewRequestWithContext(ctx,
 		http.MethodGet,
