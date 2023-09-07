@@ -158,7 +158,11 @@ func selectReplicasToTest(perProvider map[int]ProviderReplicas) map[int][]Replic
 		// This condition should not happen, but just in case there's a situation
 		// where a massive amount of bytes are being stored in relatively few CIDs
 		if numCidsToTest > maxReplicas {
-			logger.Warnf("provider %d only has %d replicas, but we are trying to test %d", providerID, maxReplicas, numCidsToTest)
+			logger.Warnf("provider %d only has %d replicas but we are trying to test %d",
+				providerID,
+				maxReplicas,
+				numCidsToTest,
+			)
 			numCidsToTest = maxReplicas
 		}
 

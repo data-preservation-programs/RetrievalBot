@@ -43,7 +43,9 @@ func AddSpadeTasks(ctx context.Context, requester string, replicasToTest map[int
 		strSpid := fmt.Sprintf("f0%d", spid)
 		t, r := prepareTasksForSP(ctx, requester, strSpid, ipInfo, replicas, locationResolver, *providerResolver)
 
+		//nolint:asasalint
 		tasks = append(tasks, t)
+		//nolint:asasalint
 		results = append(results, r)
 	}
 
@@ -96,7 +98,6 @@ func prepareTasksForSP(
 	locationResolver resolver.LocationResolver,
 	providerResolver resolver.ProviderResolver,
 ) (tasks []interface{}, results []interface{}) {
-
 	providerInfo, err := providerResolver.ResolveProvider(ctx, spid)
 	if err != nil {
 		logger.With("provider", spid).
@@ -110,7 +111,6 @@ func prepareTasksForSP(
 			errors.As(err, &requesterror.InvalidIPError{}) ||
 			errors.As(err, &requesterror.HostLookupError{}) ||
 			errors.As(err, &requesterror.NoValidMultiAddrError{}) {
-
 			results = addErrorResults(requester, ipInfo, results, spid, providerInfo, location,
 				task.NoValidMultiAddrs, err.Error())
 		} else {
