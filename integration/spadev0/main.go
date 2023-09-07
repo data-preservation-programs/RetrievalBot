@@ -34,6 +34,8 @@ func main() {
 		Action: func(cctx *cli.Context) error {
 			ctx := cctx.Context
 
+			// logging.SetLogLevel("spade-v0-tasks", "DEBUG")
+
 			// Extract the sources from the flag
 			sources := cctx.StringSlice("sources")
 
@@ -64,12 +66,15 @@ func main() {
 				replicasToTest := selectReplicasToTest(perProvider)
 
 				totalCids := 0
+				totalSize := 0
 				for prov, rps := range replicasToTest {
-					logger.Debugf("provider %d will have %d tests\n", prov, len(rps))
+					provider := perProvider[prov]
+					logger.Debugf("provider %d is storing %d GiB will have %d tests\n", prov, provider.size, len(rps))
 					totalCids += len(rps)
+					totalSize += provider.size
 				}
 
-				logger.Debugf("total %d cids will be tested for %d providers\n", totalCids, len(replicasToTest))
+				logger.Debugf("total %d CIDs will be tested for %d providers\n", totalCids, len(replicasToTest))
 
 				AddSpadeTasks(ctx, "spadev0", replicasToTest)
 			}
@@ -129,9 +134,13 @@ func fetchActiveReplicas(ctx context.Context, url string) (*ActiveReplicas, erro
 // Compute a number of CIDs to test, based on the total size of data (assuming in GiB)
 // Minimum 1, then log2 of the size in TiB
 // ex:
-// < 4Tib = 1 cid
+// < 4TiB = 1 cid
 // 4 TiB - 16TiB = 2 cids
-// 16 TiB - 256 TiB = 3 cids
+// 16 TiB - 32 TiB = 3 cids
+// 32 TiB - 64 TiB = 4 cids
+// 64 TiB - 128 TiB = 5 cids
+// 128 TiB - 256 TiB = 6 cids
+// etc...
 func numCidsToTest(size int) int {
 	return int(math.Max(math.Log2(float64(size/1024)), 1))
 }
