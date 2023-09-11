@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	"github.com/data-preservation-programs/RetrievalBot/pkg/convert"
@@ -10,6 +9,7 @@ import (
 	"github.com/data-preservation-programs/RetrievalBot/pkg/requesterror"
 	"github.com/data-preservation-programs/RetrievalBot/pkg/resolver"
 	"github.com/data-preservation-programs/RetrievalBot/pkg/task"
+	"github.com/filecoin-project/go-address"
 	"github.com/pkg/errors"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
@@ -38,9 +38,15 @@ func AddSpadeTasks(ctx context.Context, requester string, replicasToTest map[int
 	}
 	logger.With("ipinfo", ipInfo).Infof("Public IP info retrieved")
 
+	address.CurrentNetwork = address.Mainnet
+
 	// For each SPID, assemble retrieval tasks for it
 	for spid, replicas := range replicasToTest {
-		strSpid := fmt.Sprintf("f0%d", spid)
+		strSpid, err := address.NewIDAddress(uint64(spid))
+		if err != nil {
+			logger.Errorf("failed to convert spid to address: %d : %v", spid, err)
+			continue
+		}
 		t, r := prepareTasksForSP(ctx, requester, strSpid, ipInfo, replicas, locationResolver, *providerResolver)
 
 		//nolint:asasalint
@@ -92,13 +98,13 @@ var spadev0Metadata map[string]string = map[string]string{
 func prepareTasksForSP(
 	ctx context.Context,
 	requester string,
-	spid string,
+	spid address.Address,
 	ipInfo resolver.IPInfo,
 	replicas []Replica,
 	locationResolver resolver.LocationResolver,
 	providerResolver resolver.ProviderResolver,
 ) (tasks []interface{}, results []interface{}) {
-	providerInfo, err := providerResolver.ResolveProvider(ctx, spid)
+	providerInfo, err := providerResolver.ResolveProvider(ctx, spid.String())
 	if err != nil {
 		logger.With("provider", spid).
 			Error("failed to resolve provider")
@@ -111,7 +117,7 @@ func prepareTasksForSP(
 			errors.As(err, &requesterror.InvalidIPError{}) ||
 			errors.As(err, &requesterror.HostLookupError{}) ||
 			errors.As(err, &requesterror.NoValidMultiAddrError{}) {
-			results = addErrorResults(requester, ipInfo, results, spid, providerInfo, location,
+			results = addErrorResults(requester, ipInfo, results, spid.String(), providerInfo, location,
 				task.NoValidMultiAddrs, err.Error())
 		} else {
 			logger.With("provider", spid, "err", err).
@@ -126,7 +132,7 @@ func prepareTasksForSP(
 			Module:    task.Bitswap,
 			Metadata:  spadev0Metadata,
 			Provider: task.Provider{
-				ID:         spid,
+				ID:         spid.String(),
 				PeerID:     providerInfo.PeerId,
 				Multiaddrs: convert.MultiaddrsBytesToStringArraySkippingError(providerInfo.Multiaddrs),
 				City:       location.City,
