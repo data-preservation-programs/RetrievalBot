@@ -63,3 +63,7 @@ linters-settings:
         disabled: true
   lll:
     line-length: 120
+  tagliatelle:
+    case:
+      rules:
+        json: "snake"

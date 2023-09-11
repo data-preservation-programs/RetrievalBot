@@ -2,6 +2,9 @@ package util
 
 import (
 	"context"
+	"strconv"
+	"time"
+
 	"github.com/data-preservation-programs/RetrievalBot/pkg/convert"
 	"github.com/data-preservation-programs/RetrievalBot/pkg/env"
 	"github.com/data-preservation-programs/RetrievalBot/pkg/model"
@@ -13,8 +16,6 @@ import (
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/pkg/errors"
 	"golang.org/x/exp/slices"
-	"strconv"
-	"time"
 )
 
 var logger = logging.Logger("addTasks")
