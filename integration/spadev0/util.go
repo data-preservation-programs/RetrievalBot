@@ -123,7 +123,7 @@ func prepareTasksForSP(
 	for _, document := range replicas {
 		tasks = append(tasks, task.Task{
 			Requester: requester,
-			Module:    task.HTTP, // TODO: Bitswap
+			Module:    task.Bitswap,
 			Metadata:  spadev0Metadata,
 			Provider: task.Provider{
 				ID:         spid,
