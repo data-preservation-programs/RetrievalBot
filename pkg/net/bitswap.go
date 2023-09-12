@@ -18,10 +18,6 @@ import (
 	"github.com/libp2p/go-libp2p/core/routing"
 	"github.com/pkg/errors"
 	"golang.org/x/exp/slices"
-
-	ipld "github.com/ipld/go-ipld-prime"
-	codecjson "github.com/ipld/go-ipld-prime/codec/json"
-	ipldtr "github.com/ipld/go-ipld-prime/traversal"
 )
 
 type SingleContentRouter struct {
@@ -152,78 +148,6 @@ func (c BitswapClient) Retrieve(
 		var size = int64(len(blk.RawData()))
 		logger.With("size", size).With("elapsed", elapsed).Info("Retrieved block")
 		return task.NewSuccessfulRetrievalResult(elapsed, size, elapsed), nil
-	case err := <-errChan:
-		return task.NewErrorRetrievalResultWithErrorResolution(task.RetrievalFailure, err), nil
-	}
-}
-
-// Retrieve and return the actual data
-func (c BitswapClient) RetrieveData(
-	parent context.Context,
-	target peer.AddrInfo,
-	cid cid.Cid) (interface{}, error) {
-	logger := logging.Logger("bitswap_client").With("cid", cid).With("target", target)
-	network := bsnet.NewFromIpfsHost(c.host, SingleContentRouter{
-		AddrInfo: target,
-	})
-	bswap := bsclient.New(parent, network, blockstore.NewBlockstore(datastore.NewMapDatastore()))
-	notFound := make(chan struct{})
-	network.Start(MessageReceiver{BSClient: bswap, MessageHandler: func(
-		ctx context.Context, sender peer.ID, incoming bsmsg.BitSwapMessage) {
-		if sender == target.ID && slices.Contains(incoming.DontHaves(), cid) {
-			logger.Info("Block not found")
-			close(notFound)
-		}
-	}})
-	defer bswap.Close()
-	defer network.Stop()
-	connectContext, cancel := context.WithTimeout(parent, c.timeout)
-	defer cancel()
-	logger.Info("Connecting to target peer...")
-	err := c.host.Connect(connectContext, target)
-	if err != nil {
-		logger.With("err", err).Info("Failed to connect to target peer")
-		return task.NewErrorRetrievalResultWithErrorResolution(task.CannotConnect, err), nil
-	}
-
-	// startTime := time.Now()
-	resultChan := make(chan blocks.Block)
-	errChan := make(chan error)
-	go func() {
-		logger.Info("Retrieving block...")
-		blk, err := bswap.GetBlock(connectContext, cid)
-		if err != nil {
-			logger.Info(err)
-			errChan <- err
-		} else {
-			resultChan <- blk
-		}
-	}()
-	select {
-	case <-notFound:
-		return task.NewErrorRetrievalResult(
-			task.NotFound, errors.New("DONT_HAVE received from the target peer")), nil
-
-	case blk := <-resultChan:
-		// ? Is it DAG-JSON?
-		// ? Will this actually get us a Node?
-		node, err := ipld.Decode(blk.RawData(), codecjson.Decode)
-		if err != nil {
-			return nil, err
-		}
-
-		// ? What does this actually get us?
-		links, err := ipldtr.SelectLinks(node)
-		if err != nil {
-			return nil, err
-		}
-
-		// ? How does it know how the links are represented? Do we need to specify the schema at any point?
-		links[0].String()
-
-		// ? How do we traverse down the links?
-		return nil, nil
-
 	case err := <-errChan:
 		return task.NewErrorRetrievalResultWithErrorResolution(task.RetrievalFailure, err), nil
 	}
