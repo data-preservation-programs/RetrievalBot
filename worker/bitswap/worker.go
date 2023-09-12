@@ -2,6 +2,7 @@ package bitswap
 
 import (
 	"context"
+
 	"github.com/data-preservation-programs/RetrievalBot/pkg/convert"
 	"github.com/data-preservation-programs/RetrievalBot/pkg/model"
 	"github.com/data-preservation-programs/RetrievalBot/pkg/net"
@@ -81,6 +82,12 @@ func (e Worker) DoWork(tsk task.Task) (*task.RetrievalResult, error) {
 
 	if peerID == "" || len(addrs) == 0 {
 		return task.NewErrorRetrievalResult(task.ProtocolNotSupported, errors.New("No bitswap multiaddr available")), nil
+	}
+
+	// TODO: Spade Retrieval
+	// TODO: Enum/type for retrieval type
+	if tsk.Metadata["retrieve_type"] == "spade" {
+		logger.Warn("Spade retrieval not yet implemented")
 	}
 
 	//nolint:wrapcheck
