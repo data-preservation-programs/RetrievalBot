@@ -3,10 +3,15 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
+	"log"
 	"math/rand"
 	"time"
 
+	"github.com/data-preservation-programs/RetrievalBot/pkg/convert"
+	"github.com/data-preservation-programs/RetrievalBot/pkg/net"
 	"github.com/data-preservation-programs/RetrievalBot/pkg/task"
+	"github.com/ipfs/go-cid"
 	goCid "github.com/ipfs/go-cid"
 	"github.com/ipfs/go-datastore"
 	blockstore "github.com/ipfs/go-ipfs-blockstore"
@@ -28,6 +33,8 @@ import (
 	_ "github.com/ipld/go-ipld-prime/codec/dagjson"
 	_ "github.com/ipld/go-ipld-prime/codec/raw"
 )
+
+var logger = logging.Logger("spade-test")
 
 type SingleContentRouter struct {
 	AddrInfo peer.AddrInfo
@@ -107,11 +114,10 @@ func NewBitswapClient(host host.Host, timeout time.Duration) BitswapClient {
 	}
 }
 
-func (c BitswapClient) RetrieveData(
+func (c BitswapClient) SpadeTraversal(
 	parent context.Context,
 	target peer.AddrInfo,
 	cid goCid.Cid) (interface{}, error) {
-	logger := logging.Logger("bitswap_client").With("cid", cid).With("target", target)
 	network := bsnet.NewFromIpfsHost(c.host, SingleContentRouter{
 		AddrInfo: target,
 	})
@@ -139,7 +145,7 @@ func (c BitswapClient) RetrieveData(
 	resultChan := make(chan blocks.Block)
 	errChan := make(chan error)
 	go func() {
-		logger.Info("Retrieving block...")
+		logger.Debug("Retrieving block...")
 		blk, err := bswap.GetBlock(connectContext, cid)
 		if err != nil {
 			logger.Info(err)
@@ -155,8 +161,9 @@ func (c BitswapClient) RetrieveData(
 
 	// i.e, https://pkg.go.dev/github.com/ipfs/go-libipfs@v0.6.1/blocks#Block
 	case blk := <-resultChan:
-		// ? Is it DAG-JSON?
 		decoder, err := cidlink.DefaultLinkSystem().DecoderChooser(cidlink.Link{Cid: cid})
+
+		logger.Debugf("raw block: %s", blk.RawData())
 
 		if err != nil {
 			return nil, err
@@ -178,6 +185,7 @@ func (c BitswapClient) RetrieveData(
 
 		// * []links now has an array of CIDs
 		logger.Debugf("cid has %d links", len(links))
+		logger.Debug(links)
 
 		// Get a random index from the links array
 		rand.Seed(time.Now().UnixNano())
@@ -188,5 +196,44 @@ func (c BitswapClient) RetrieveData(
 
 	case err := <-errChan:
 		return task.NewErrorRetrievalResultWithErrorResolution(task.RetrievalFailure, err), nil
+	}
+}
+
+func main() {
+	ctx := context.Background()
+	logging.SetLogLevel("spade-test", "DEBUG")
+	logger.Debugf("starting spade-test")
+
+	host, err := net.InitHost(ctx, nil)
+	if err != nil {
+		fmt.Errorf("failed to init host", err)
+		return
+	}
+
+	client := NewBitswapClient(host, time.Second*1)
+
+	cidToRetrieve, err := cid.Parse("bafybeib62b4ukyzjcj7d2h4mbzjgg7l6qiz3ma4vb4b2bawmcauf5afvua")
+	if err != nil {
+		log.Fatalf("unable to parse cid %s", err)
+	}
+
+	peerID, err := peer.Decode("12D3KooWNrzJ4aeavdsuxkGpErb33G7Daf2FmX8bJHx9bdE6WFzG")
+	if err != nil {
+		log.Fatalf("unable to decode peerID %s", err)
+	}
+
+	addrs, err := convert.StringArrayToMultiaddrs([]string{"/ip4/127.0.0.1/tcp/4001"})
+	if err != nil {
+		log.Fatalf("unable to convert multiaddrs %s", err)
+	}
+
+	p := peer.AddrInfo{
+		ID:    peerID,
+		Addrs: addrs,
+	}
+
+	_, err = client.SpadeTraversal(ctx, p, cidToRetrieve)
+	if err != nil {
+		log.Fatalf("unable to retrieve cid %s", err)
 	}
 }
