@@ -197,17 +197,17 @@ func SpadeTraversal(ctx context.Context, startingCid goCid.Cid, p peer.AddrInfo)
 	cidToRetrieve := startingCid
 
 	for i := 0; i <= 3; i++ {
-		// For some reason, need to re-init the host every time we do a fetch
+		// For some reason, need to re-init the host & client every time we do a fetch
 		// otherwise, we get context timeout error after the first fetch
 		host, err := net.InitHost(ctx, nil)
 		if err != nil {
 			return false, fmt.Errorf("failed to init host %s", err)
 		}
 
-		client := NewBitswapClient(host, time.Second*50)
+		client := NewBitswapClient(host, time.Second*1)
 
 		// Retrieval
-		fmt.Printf("retrieving %s\n", cidToRetrieve.String())
+		logger.Debugf("retrieving %s\n", cidToRetrieve.String())
 		blk, err := client.RetrieveBlock(ctx, p, cidToRetrieve)
 		if err != nil {
 			return false, fmt.Errorf("unable to retrieve cid %s", err)
@@ -219,6 +219,7 @@ func SpadeTraversal(ctx context.Context, startingCid goCid.Cid, p peer.AddrInfo)
 			return true, nil
 		}
 
+		// if not at bottom of the tree, keep going down the links until we reach it
 		links, err := FindLinks(ctx, blk)
 		if err != nil {
 			log.Fatalf("unable to find links %s", err)
@@ -233,10 +234,10 @@ func SpadeTraversal(ctx context.Context, startingCid goCid.Cid, p peer.AddrInfo)
 				return false, fmt.Errorf("starting node only contains one link which must be the manifest")
 			}
 
-			// First retrieval, never grab the first link as it refers to the AggregateManifest
+			// from the starting node's children, never grab the first link as it refers to the AggregateManifest
 			nextIndex = 1 + rand.Intn(len(links)-1)
 		} else {
-			// randomly pick one between 0 and len(links)
+			// randomly pick a link to go down
 			nextIndex = rand.Intn(len(links))
 		}
 
@@ -244,8 +245,6 @@ func SpadeTraversal(ctx context.Context, startingCid goCid.Cid, p peer.AddrInfo)
 		if err != nil {
 			return false, fmt.Errorf("unable to parse cid %s", err)
 		}
-
-		logger.Debugf("next cid to retrieve is %s\n", cidToRetrieve.String())
 	}
 
 	return false, nil
