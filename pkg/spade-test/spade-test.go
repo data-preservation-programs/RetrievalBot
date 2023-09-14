@@ -196,6 +196,8 @@ func (c BitswapClient) RetrieveBlock(
 func SpadeTraversal(ctx context.Context, startingCid goCid.Cid, p peer.AddrInfo) (bool, error) {
 	cidToRetrieve := startingCid
 
+	// It will always be 3 layers, no more no less
+	// ref: https://github.com/filecoin-project/go-dagaggregator-unixfs#grouping-unixfs-structure
 	for i := 0; i <= 3; i++ {
 		// For some reason, need to re-init the host & client every time we do a fetch
 		// otherwise, we get context timeout error after the first fetch
