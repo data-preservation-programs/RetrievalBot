@@ -5,12 +5,10 @@ import (
 	"errors"
 	"fmt"
 	"log"
-	"math/rand"
 	"time"
 
 	"github.com/data-preservation-programs/RetrievalBot/pkg/convert"
 	"github.com/data-preservation-programs/RetrievalBot/pkg/net"
-	"github.com/data-preservation-programs/RetrievalBot/pkg/task"
 	"github.com/ipfs/go-cid"
 	goCid "github.com/ipfs/go-cid"
 	"github.com/ipfs/go-datastore"
@@ -20,6 +18,7 @@ import (
 	bsnet "github.com/ipfs/go-libipfs/bitswap/network"
 	"github.com/ipfs/go-libipfs/blocks"
 	logging "github.com/ipfs/go-log/v2"
+	"github.com/ipld/go-ipld-prime/datamodel"
 	cidlink "github.com/ipld/go-ipld-prime/linking/cid"
 	"github.com/ipld/go-ipld-prime/traversal"
 	"github.com/libp2p/go-libp2p/core/host"
@@ -114,10 +113,37 @@ func NewBitswapClient(host host.Host, timeout time.Duration) BitswapClient {
 	}
 }
 
+// Attempts to decode the block data into a node and return its links
+func FindLinks(ctx context.Context, blk blocks.Block) ([]datamodel.Link, error) {
+	decoder, err := cidlink.DefaultLinkSystem().DecoderChooser(cidlink.Link{Cid: blk.Cid()})
+
+	if err != nil {
+		return nil, err
+	}
+
+	if blk.Cid().Prefix().Codec == goCid.Raw {
+		// This can happen at the bottom of the tree
+		return nil, errors.New("raw block encountered fetching " + blk.Cid().String())
+	}
+
+	node, err := ipld.Decode(blk.RawData(), decoder)
+	if err != nil {
+		return nil, err
+	}
+
+	links, err := traversal.SelectLinks(node)
+	if err != nil {
+		return nil, err
+	}
+
+	return links, nil
+}
+
+// Returns the raw block data, the links, and error if any
 func (c BitswapClient) SpadeTraversal(
 	parent context.Context,
 	target peer.AddrInfo,
-	cid goCid.Cid) (interface{}, error) {
+	cid goCid.Cid) (blocks.Block, error) {
 	network := bsnet.NewFromIpfsHost(c.host, SingleContentRouter{
 		AddrInfo: target,
 	})
@@ -137,8 +163,7 @@ func (c BitswapClient) SpadeTraversal(
 	logger.Info("Connecting to target peer...")
 	err := c.host.Connect(connectContext, target)
 	if err != nil {
-		logger.With("err", err).Info("Failed to connect to target peer")
-		return task.NewErrorRetrievalResultWithErrorResolution(task.CannotConnect, err), nil
+		return nil, fmt.Errorf("failed to connect to target peer, %s", err)
 	}
 
 	// startTime := time.Now()
@@ -156,46 +181,13 @@ func (c BitswapClient) SpadeTraversal(
 	}()
 	select {
 	case <-notFound:
-		return task.NewErrorRetrievalResult(
-			task.NotFound, errors.New("DONT_HAVE received from the target peer")), nil
+		return nil, errors.New("DONT_HAVE received from the target peer")
 
-	// i.e, https://pkg.go.dev/github.com/ipfs/go-libipfs@v0.6.1/blocks#Block
 	case blk := <-resultChan:
-		decoder, err := cidlink.DefaultLinkSystem().DecoderChooser(cidlink.Link{Cid: cid})
-
-		logger.Debugf("raw block: %s", blk.RawData())
-
-		if err != nil {
-			return nil, err
-		}
-
-		if blk.Cid().Prefix().Codec == goCid.Raw {
-			return nil, errors.New("raw block encountered fetching " + cid.String())
-		}
-
-		node, err := ipld.Decode(blk.RawData(), decoder)
-		if err != nil {
-			return nil, err
-		}
-
-		links, err := traversal.SelectLinks(node)
-		if err != nil {
-			return nil, err
-		}
-
-		// * []links now has an array of CIDs
-		logger.Debugf("cid has %d links", len(links))
-		logger.Debug(links)
-
-		// Get a random index from the links array
-		rand.Seed(time.Now().UnixNano())
-		// n := rand.Intn(len(links))
-
-		// TODO: fetch links[n] and repeat
-		return nil, nil
+		return blk, nil
 
 	case err := <-errChan:
-		return task.NewErrorRetrievalResultWithErrorResolution(task.RetrievalFailure, err), nil
+		return nil, fmt.Errorf("error received %s", err)
 	}
 }
 
@@ -213,6 +205,7 @@ func main() {
 	client := NewBitswapClient(host, time.Second*1)
 
 	cidToRetrieve, err := cid.Parse("bafybeib62b4ukyzjcj7d2h4mbzjgg7l6qiz3ma4vb4b2bawmcauf5afvua")
+	// cidToRetrieve, err := cid.Parse("bafkreiarcpog7fgb3cvs4iznh6jcqtxgyyk5rbsmk4dvxuty5tylof6qea")
 	if err != nil {
 		log.Fatalf("unable to parse cid %s", err)
 	}
@@ -232,8 +225,16 @@ func main() {
 		Addrs: addrs,
 	}
 
-	_, err = client.SpadeTraversal(ctx, p, cidToRetrieve)
+	blk, err := client.SpadeTraversal(ctx, p, cidToRetrieve)
 	if err != nil {
 		log.Fatalf("unable to retrieve cid %s", err)
 	}
+
+	links, err := FindLinks(ctx, blk)
+
+	if err != nil {
+		log.Fatalf("unable to find links %s", err)
+	}
+
+	fmt.Println(links)
 }
