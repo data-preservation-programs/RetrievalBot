@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"math/rand"
 	"time"
 
 	"github.com/data-preservation-programs/RetrievalBot/pkg/convert"
@@ -115,15 +116,15 @@ func NewBitswapClient(host host.Host, timeout time.Duration) BitswapClient {
 
 // Attempts to decode the block data into a node and return its links
 func FindLinks(ctx context.Context, blk blocks.Block) ([]datamodel.Link, error) {
+	if blk.Cid().Prefix().Codec == goCid.Raw {
+		// This can happen at the bottom of the tree
+		return nil, errors.New("raw block encountered " + blk.Cid().String())
+	}
+
 	decoder, err := cidlink.DefaultLinkSystem().DecoderChooser(cidlink.Link{Cid: blk.Cid()})
 
 	if err != nil {
 		return nil, err
-	}
-
-	if blk.Cid().Prefix().Codec == goCid.Raw {
-		// This can happen at the bottom of the tree
-		return nil, errors.New("raw block encountered fetching " + blk.Cid().String())
 	}
 
 	node, err := ipld.Decode(blk.RawData(), decoder)
@@ -140,7 +141,7 @@ func FindLinks(ctx context.Context, blk blocks.Block) ([]datamodel.Link, error) 
 }
 
 // Returns the raw block data, the links, and error if any
-func (c BitswapClient) SpadeTraversal(
+func (c BitswapClient) RetrieveBlock(
 	parent context.Context,
 	target peer.AddrInfo,
 	cid goCid.Cid) (blocks.Block, error) {
@@ -166,7 +167,6 @@ func (c BitswapClient) SpadeTraversal(
 		return nil, fmt.Errorf("failed to connect to target peer, %s", err)
 	}
 
-	// startTime := time.Now()
 	resultChan := make(chan blocks.Block)
 	errChan := make(chan error)
 	go func() {
@@ -191,21 +191,72 @@ func (c BitswapClient) SpadeTraversal(
 	}
 }
 
+// Starts with the root CID, then fetches a random CID from the children and grandchildren nodes
+// Returns true if all retrievals were successful, false if any failed
+func SpadeTraversal(ctx context.Context, startingCid goCid.Cid, p peer.AddrInfo) (bool, error) {
+	cidToRetrieve := startingCid
+
+	for i := 0; i <= 3; i++ {
+		// For some reason, need to re-init the host every time we do a fetch
+		// otherwise, we get context timeout error after the first fetch
+		host, err := net.InitHost(ctx, nil)
+		if err != nil {
+			return false, fmt.Errorf("failed to init host %s", err)
+		}
+
+		client := NewBitswapClient(host, time.Second*50)
+
+		// Retrieval
+		fmt.Printf("retrieving %s\n", cidToRetrieve.String())
+		blk, err := client.RetrieveBlock(ctx, p, cidToRetrieve)
+		if err != nil {
+			return false, fmt.Errorf("unable to retrieve cid %s", err)
+		}
+
+		if i == 3 {
+			// we've reached the bottom of the tree
+			logger.Debugf("retrieved data cid %s which contains %d bytes\n", cidToRetrieve.String(), len(blk.RawData()))
+			return true, nil
+		}
+
+		links, err := FindLinks(ctx, blk)
+		if err != nil {
+			log.Fatalf("unable to find links %s", err)
+		}
+
+		logger.Debugf("retrieved %s which has %d links\n", cidToRetrieve.String(), len(links))
+
+		nextIndex := 0
+		rand.Seed(time.Now().UnixNano())
+		if i == 0 {
+			if len(links) == 1 {
+				return false, fmt.Errorf("starting node only contains one link which must be the manifest")
+			}
+
+			// First retrieval, never grab the first link as it refers to the AggregateManifest
+			nextIndex = 1 + rand.Intn(len(links)-1)
+		} else {
+			// randomly pick one between 0 and len(links)
+			nextIndex = rand.Intn(len(links))
+		}
+
+		cidToRetrieve, err = cid.Parse(links[nextIndex].String())
+		if err != nil {
+			return false, fmt.Errorf("unable to parse cid %s", err)
+		}
+
+		logger.Debugf("next cid to retrieve is %s\n", cidToRetrieve.String())
+	}
+
+	return false, nil
+}
+
 func main() {
 	ctx := context.Background()
 	logging.SetLogLevel("spade-test", "DEBUG")
 	logger.Debugf("starting spade-test")
 
-	host, err := net.InitHost(ctx, nil)
-	if err != nil {
-		fmt.Errorf("failed to init host", err)
-		return
-	}
-
-	client := NewBitswapClient(host, time.Second*1)
-
 	cidToRetrieve, err := cid.Parse("bafybeib62b4ukyzjcj7d2h4mbzjgg7l6qiz3ma4vb4b2bawmcauf5afvua")
-	// cidToRetrieve, err := cid.Parse("bafkreiarcpog7fgb3cvs4iznh6jcqtxgyyk5rbsmk4dvxuty5tylof6qea")
 	if err != nil {
 		log.Fatalf("unable to parse cid %s", err)
 	}
@@ -225,16 +276,10 @@ func main() {
 		Addrs: addrs,
 	}
 
-	blk, err := client.SpadeTraversal(ctx, p, cidToRetrieve)
+	success, err := SpadeTraversal(ctx, cidToRetrieve, p)
 	if err != nil {
-		log.Fatalf("unable to retrieve cid %s", err)
+		logger.Errorf("spade traversal failed %s", err)
 	}
 
-	links, err := FindLinks(ctx, blk)
-
-	if err != nil {
-		log.Fatalf("unable to find links %s", err)
-	}
-
-	fmt.Println(links)
+	fmt.Println("success: ", success)
 }
