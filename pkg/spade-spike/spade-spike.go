@@ -191,14 +191,14 @@ func (c BitswapClient) RetrieveBlock(
 	}
 }
 
-// Starts with the root CID, then fetches a random CID from the children and grandchildren nodes
+// Starts with the root CID, then fetches a random CID from the children and grandchildren nodes, until it reaches `traverseDepth`
+// Note: the root CID is considered depth `0`, so passing `traverseDepth=0` will only fetch the root CID
 // Returns true if all retrievals were successful, false if any failed
-func SpadeTraversal(ctx context.Context, startingCid goCid.Cid, p peer.AddrInfo) (bool, error) {
+func SpadeTraversal(ctx context.Context, startingCid goCid.Cid, p peer.AddrInfo, traverseDepth uint) (bool, error) {
 	cidToRetrieve := startingCid
 
-	// It will always be 3 layers, no more no less
-	// ref: https://github.com/filecoin-project/go-dagaggregator-unixfs#grouping-unixfs-structure
-	for i := 0; i <= 3; i++ {
+	// support structures such as: https://github.com/filecoin-project/go-dagaggregator-unixfs#grouping-unixfs-structure
+	for i := uint(0); i <= traverseDepth; i++ {
 		// For some reason, need to re-init the host & client every time we do a fetch
 		// otherwise, we get context timeout error after the first fetch
 		host, err := net.InitHost(ctx, nil)
@@ -215,7 +215,7 @@ func SpadeTraversal(ctx context.Context, startingCid goCid.Cid, p peer.AddrInfo)
 			return false, errors.Wrap(err, "unable to retrieve cid %s")
 		}
 
-		if i == 3 {
+		if i == traverseDepth {
 			// we've reached the bottom of the tree
 			logger.Debugf("retrieved data cid %s which contains %d bytes\n", cidToRetrieve.String(), len(blk.RawData()))
 			return true, nil
@@ -232,13 +232,16 @@ func SpadeTraversal(ctx context.Context, startingCid goCid.Cid, p peer.AddrInfo)
 		nextIndex := 0
 		rand.Seed(time.Now().UnixNano())
 		if i == 0 {
-			if len(links) == 1 {
-				return false, errors.New("starting node only contains one link which must be the manifest")
+			if len(links) < 2 {
+				return false, errors.New("starting node contains less than 2 links, will not traverse any further")
 			}
 
 			// from the starting node's children, never grab the first link as it refers to the AggregateManifest
 			nextIndex = 1 + rand.Intn(len(links)-1)
 		} else {
+			if len(links) < 1 {
+				return false, fmt.Errorf("node at depth %d contains no links, will not traverse any further", i)
+			}
 			// randomly pick a link to go down
 			nextIndex = rand.Intn(len(links))
 		}
@@ -277,7 +280,7 @@ func main() {
 		Addrs: addrs,
 	}
 
-	success, err := SpadeTraversal(ctx, cidToRetrieve, p)
+	success, err := SpadeTraversal(ctx, cidToRetrieve, p, 3)
 	if err != nil {
 		logger.Errorf("spade traversal failed %s", err)
 	}
