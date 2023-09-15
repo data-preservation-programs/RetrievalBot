@@ -203,7 +203,7 @@ func SpadeTraversal(ctx context.Context, startingCid goCid.Cid, p peer.AddrInfo,
 		// otherwise, we get context timeout error after the first fetch
 		host, err := net.InitHost(ctx, nil)
 		if err != nil {
-			return false, errors.Wrap(err, "failrd to init host %s")
+			return false, errors.Wrap(err, "failed to init host %s")
 		}
 
 		client := NewBitswapClient(host, time.Second*1)
