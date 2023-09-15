@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"log"
 	"math/rand"
@@ -25,6 +24,7 @@ import (
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/core/routing"
+	"github.com/pkg/errors"
 	"golang.org/x/exp/slices"
 
 	_ "github.com/ipld/go-codec-dagpb"
@@ -164,7 +164,7 @@ func (c BitswapClient) RetrieveBlock(
 	logger.Info("Connecting to target peer...")
 	err := c.host.Connect(connectContext, target)
 	if err != nil {
-		return nil, fmt.Errorf("failed to connect to target peer, %s", err)
+		return nil, errors.Wrap(err, "failed to connect to target peer")
 	}
 
 	resultChan := make(chan blocks.Block)
@@ -187,7 +187,7 @@ func (c BitswapClient) RetrieveBlock(
 		return blk, nil
 
 	case err := <-errChan:
-		return nil, fmt.Errorf("error received %s", err)
+		return nil, errors.Wrap(err, "error received %s")
 	}
 }
 
@@ -203,7 +203,7 @@ func SpadeTraversal(ctx context.Context, startingCid goCid.Cid, p peer.AddrInfo)
 		// otherwise, we get context timeout error after the first fetch
 		host, err := net.InitHost(ctx, nil)
 		if err != nil {
-			return false, fmt.Errorf("failed to init host %s", err)
+			return false, errors.Wrap(err, "failrd to init host %s")
 		}
 
 		client := NewBitswapClient(host, time.Second*1)
@@ -212,7 +212,7 @@ func SpadeTraversal(ctx context.Context, startingCid goCid.Cid, p peer.AddrInfo)
 		logger.Debugf("retrieving %s\n", cidToRetrieve.String())
 		blk, err := client.RetrieveBlock(ctx, p, cidToRetrieve)
 		if err != nil {
-			return false, fmt.Errorf("unable to retrieve cid %s", err)
+			return false, errors.Wrap(err, "unable to retrieve cid %s")
 		}
 
 		if i == 3 {
@@ -224,7 +224,7 @@ func SpadeTraversal(ctx context.Context, startingCid goCid.Cid, p peer.AddrInfo)
 		// if not at bottom of the tree, keep going down the links until we reach it
 		links, err := FindLinks(ctx, blk)
 		if err != nil {
-			log.Fatalf("unable to find links %s", err)
+			return false, errors.Wrap(err, "unable to find links")
 		}
 
 		logger.Debugf("retrieved %s which has %d links\n", cidToRetrieve.String(), len(links))
@@ -233,7 +233,7 @@ func SpadeTraversal(ctx context.Context, startingCid goCid.Cid, p peer.AddrInfo)
 		rand.Seed(time.Now().UnixNano())
 		if i == 0 {
 			if len(links) == 1 {
-				return false, fmt.Errorf("starting node only contains one link which must be the manifest")
+				return false, errors.New("starting node only contains one link which must be the manifest")
 			}
 
 			// from the starting node's children, never grab the first link as it refers to the AggregateManifest
@@ -245,7 +245,7 @@ func SpadeTraversal(ctx context.Context, startingCid goCid.Cid, p peer.AddrInfo)
 
 		cidToRetrieve, err = cid.Parse(links[nextIndex].String())
 		if err != nil {
-			return false, fmt.Errorf("unable to parse cid %s", err)
+			return false, errors.Wrap(err, "unable to parse cid")
 		}
 	}
 
