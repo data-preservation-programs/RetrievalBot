@@ -232,13 +232,21 @@ func SpadeTraversal(ctx context.Context, startingCid goCid.Cid, p peer.AddrInfo,
 		nextIndex := 0
 		rand.Seed(time.Now().UnixNano())
 		if i == 0 {
-			if len(links) < 2 {
-				return false, errors.New("starting node contains less than 2 links, will not traverse any further")
+			// Special logic for when we are at the root node
+			if len(links) == 0 {
+				return false, fmt.Errorf("root node contains no links, will not traverse any further")
 			}
-
-			// from the starting node's children, never grab the first link as it refers to the AggregateManifest
-			nextIndex = 1 + rand.Intn(len(links)-1)
+			if len(links) == 1 {
+				// Generally this should not happen as the root node should contain at least one AggregateManifest and other links
+				// however, there may be a different construction in the future where this is still valid, so we will attempt to retrieve
+				logger.Debugf("starting node contains only 1 link - will still attempt retrieval test")
+				nextIndex = 0
+			} else {
+				// To be safe, never grab the first link off the root as it may refer to the AggregateManifest
+				nextIndex = 1 + rand.Intn(len(links)-1)
+			}
 		} else {
+			// Logic for all other non-root nodes
 			if len(links) < 1 {
 				return false, fmt.Errorf("node at depth %d contains no links, will not traverse any further", i)
 			}
