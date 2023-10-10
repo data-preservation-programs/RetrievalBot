@@ -166,8 +166,8 @@ func (c BitswapClient) Retrieve(
 
 // Starts with the root CID, then fetches a random CID from the children and grandchildren nodes, until it reaches `traverseDepth`
 // Note: the root CID is considered depth `0`, so passing `traverseDepth=0` will only fetch the root CID
-// Returns true if all retrievals were successful, false if any failed
-func (c BitswapClient) SpadeTraversal(parent context.Context, startingCid cid.Cid, target peer.AddrInfo, traverseDepth uint) (*task.RetrievalResult, error) {
+// Returns a `SuccessfulRetrievalResult` if *all* retrievals were successful, `ErrorRetrievalResult` if any failed
+func (c BitswapClient) SpadeTraversal(parent context.Context, target peer.AddrInfo, startingCid cid.Cid, traverseDepth uint) (*task.RetrievalResult, error) {
 	logger := logging.Logger("bitswap_client_spade").With("cid", startingCid).With("target", target)
 	cidToRetrieve := startingCid
 
@@ -186,7 +186,7 @@ func (c BitswapClient) SpadeTraversal(parent context.Context, startingCid cid.Ci
 		client := NewBitswapClient(host, time.Second*1)
 
 		// Retrieval
-		logger.Debugf("retrieving %s\n", cidToRetrieve.String())
+		logger.Infof("retrieving %s\n", cidToRetrieve.String())
 		blk, err := client.RetrieveBlock(parent, target, cidToRetrieve)
 		if err != nil {
 			return task.NewErrorRetrievalResultWithErrorResolution(task.RetrievalFailure, err), nil
@@ -220,7 +220,7 @@ func (c BitswapClient) SpadeTraversal(parent context.Context, startingCid cid.Ci
 			if len(links) == 1 {
 				// Generally this should not happen as the root node should contain at least one AggregateManifest and other links
 				// however, there may be a different construction in the future where this is still valid, so we will attempt to retrieve
-				logger.Debugf("starting node contains only 1 link - will still attempt retrieval test")
+				logger.Info("starting node contains only 1 link - will still attempt retrieval test")
 				nextIndex = 0
 			} else {
 				// To be safe, never grab the first link off the root as it may refer to the AggregateManifest
@@ -240,7 +240,7 @@ func (c BitswapClient) SpadeTraversal(parent context.Context, startingCid cid.Ci
 			return task.NewErrorRetrievalResultWithErrorResolution(task.CIDCodecNotSupported, err), nil
 		}
 
-		i++
+		i++ // To the next layer of the tree
 	}
 }
 

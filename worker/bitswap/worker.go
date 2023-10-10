@@ -92,10 +92,10 @@ func (e Worker) DoWork(tsk task.Task) (*task.RetrievalResult, error) {
 			return nil, errors.Wrap(err, "failed to parse traverse depth")
 		}
 
-		return client.SpadeTraversal(ctx, contentCID, peer.AddrInfo{
+		return client.SpadeTraversal(ctx, peer.AddrInfo{
 			ID:    peerID,
 			Addrs: addrs,
-		}, uint(depth),
+		}, contentCID, uint(depth),
 		)
 	}
 
