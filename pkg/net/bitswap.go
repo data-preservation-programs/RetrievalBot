@@ -2,7 +2,6 @@ package net
 
 import (
 	"context"
-	"fmt"
 	"math/rand"
 	"time"
 
@@ -168,17 +167,20 @@ func (c BitswapClient) Retrieve(
 // Starts with the root CID, then fetches a random CID from the children and grandchildren nodes, until it reaches `traverseDepth`
 // Note: the root CID is considered depth `0`, so passing `traverseDepth=0` will only fetch the root CID
 // Returns true if all retrievals were successful, false if any failed
-func SpadeTraversal(ctx context.Context, startingCid cid.Cid, target peer.AddrInfo, traverseDepth uint) (bool, error) {
+func SpadeTraversal(ctx context.Context, startingCid cid.Cid, target peer.AddrInfo, traverseDepth uint) (*task.RetrievalResult, error) {
 	logger := logging.Logger("bitswap_client_spade").With("cid", startingCid).With("target", target)
 	cidToRetrieve := startingCid
 
+	startTime := time.Now()
+
 	// support structures such as: https://github.com/filecoin-project/go-dagaggregator-unixfs#grouping-unixfs-structure
-	for i := uint(0); i <= traverseDepth; i++ {
+	i := uint(0)
+	for {
 		// For some reason, need to re-init the host & client every time we do a fetch
 		// otherwise, we get context timeout error after the first fetch
 		host, err := InitHost(ctx, nil)
 		if err != nil {
-			return false, errors.Wrap(err, "failed to init host %s")
+			return task.NewErrorRetrievalResult(task.CannotConnect, errors.Wrap(err, "failed to init host %s")), nil
 		}
 
 		client := NewBitswapClient(host, time.Second*1)
@@ -187,19 +189,22 @@ func SpadeTraversal(ctx context.Context, startingCid cid.Cid, target peer.AddrIn
 		logger.Debugf("retrieving %s\n", cidToRetrieve.String())
 		blk, err := client.RetrieveBlock(ctx, target, cidToRetrieve)
 		if err != nil {
-			return false, errors.Wrap(err, "unable to retrieve cid %s")
+			return task.NewErrorRetrievalResultWithErrorResolution(task.RetrievalFailure, err), nil
 		}
 
 		if i == traverseDepth {
-			// we've reached the bottom of the tree
-			logger.Debugf("retrieved data cid %s which contains %d bytes\n", cidToRetrieve.String(), len(blk.RawData()))
-			return true, nil
+			var size = int64(len(blk.RawData()))
+			elapsed := time.Since(startTime)
+			logger.With("size", size).With("elapsed", elapsed).Info("Retrieved block")
+
+			// we've reached the requested depth of the tree
+			return task.NewSuccessfulRetrievalResult(elapsed, size, elapsed), nil
 		}
 
 		// if not at bottom of the tree, keep going down the links until we reach it
 		links, err := FindLinks(ctx, blk)
 		if err != nil {
-			return false, errors.Wrap(err, "unable to find links")
+			return task.NewErrorRetrievalResultWithErrorResolution(task.CannotDecodeLinks, err), nil
 		}
 
 		logger.Debugf("retrieved %s which has %d links\n", cidToRetrieve.String(), len(links))
@@ -208,8 +213,9 @@ func SpadeTraversal(ctx context.Context, startingCid cid.Cid, target peer.AddrIn
 		rand.Seed(time.Now().UnixNano())
 		if i == 0 {
 			// Special logic for when we are at the root node
+
 			if len(links) == 0 {
-				return false, fmt.Errorf("root node contains no links, will not traverse any further")
+				return task.NewErrorRetrievalResult(task.CannotTraverse, errors.Errorf("root node contains no links, cannot traverse any further")), nil
 			}
 			if len(links) == 1 {
 				// Generally this should not happen as the root node should contain at least one AggregateManifest and other links
@@ -223,7 +229,7 @@ func SpadeTraversal(ctx context.Context, startingCid cid.Cid, target peer.AddrIn
 		} else {
 			// Logic for all other non-root nodes
 			if len(links) < 1 {
-				return false, fmt.Errorf("node at depth %d contains no links, will not traverse any further", i)
+				return task.NewErrorRetrievalResult(task.CannotTraverse, errors.Errorf("node at depth %d contains no links, cannot traverse any further", i)), nil
 			}
 			// randomly pick a link to go down
 			nextIndex = rand.Intn(len(links))
@@ -231,11 +237,11 @@ func SpadeTraversal(ctx context.Context, startingCid cid.Cid, target peer.AddrIn
 
 		cidToRetrieve, err = cid.Parse(links[nextIndex].String())
 		if err != nil {
-			return false, errors.Wrap(err, "unable to parse cid")
+			return task.NewErrorRetrievalResultWithErrorResolution(task.CIDCodecNotSupported, err), nil
 		}
-	}
 
-	return false, nil
+		i++
+	}
 }
 
 // Returns the raw block data, the links, and error if any
