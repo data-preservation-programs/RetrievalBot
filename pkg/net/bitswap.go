@@ -2,6 +2,8 @@ package net
 
 import (
 	"context"
+	"fmt"
+	"math/rand"
 	"time"
 
 	"github.com/data-preservation-programs/RetrievalBot/pkg/task"
@@ -18,6 +20,16 @@ import (
 	"github.com/libp2p/go-libp2p/core/routing"
 	"github.com/pkg/errors"
 	"golang.org/x/exp/slices"
+
+	_ "github.com/ipld/go-codec-dagpb"
+	ipld "github.com/ipld/go-ipld-prime"
+	"github.com/ipld/go-ipld-prime/datamodel"
+	cidlink "github.com/ipld/go-ipld-prime/linking/cid"
+	"github.com/ipld/go-ipld-prime/traversal"
+
+	_ "github.com/ipld/go-ipld-prime/codec/dagcbor"
+	_ "github.com/ipld/go-ipld-prime/codec/dagjson"
+	_ "github.com/ipld/go-ipld-prime/codec/raw"
 )
 
 type SingleContentRouter struct {
@@ -151,4 +163,155 @@ func (c BitswapClient) Retrieve(
 	case err := <-errChan:
 		return task.NewErrorRetrievalResultWithErrorResolution(task.RetrievalFailure, err), nil
 	}
+}
+
+// Starts with the root CID, then fetches a random CID from the children and grandchildren nodes, until it reaches `traverseDepth`
+// Note: the root CID is considered depth `0`, so passing `traverseDepth=0` will only fetch the root CID
+// Returns true if all retrievals were successful, false if any failed
+func SpadeTraversal(ctx context.Context, startingCid cid.Cid, target peer.AddrInfo, traverseDepth uint) (bool, error) {
+	logger := logging.Logger("bitswap_client_spade").With("cid", startingCid).With("target", target)
+	cidToRetrieve := startingCid
+
+	// support structures such as: https://github.com/filecoin-project/go-dagaggregator-unixfs#grouping-unixfs-structure
+	for i := uint(0); i <= traverseDepth; i++ {
+		// For some reason, need to re-init the host & client every time we do a fetch
+		// otherwise, we get context timeout error after the first fetch
+		host, err := InitHost(ctx, nil)
+		if err != nil {
+			return false, errors.Wrap(err, "failed to init host %s")
+		}
+
+		client := NewBitswapClient(host, time.Second*1)
+
+		// Retrieval
+		logger.Debugf("retrieving %s\n", cidToRetrieve.String())
+		blk, err := client.RetrieveBlock(ctx, target, cidToRetrieve)
+		if err != nil {
+			return false, errors.Wrap(err, "unable to retrieve cid %s")
+		}
+
+		if i == traverseDepth {
+			// we've reached the bottom of the tree
+			logger.Debugf("retrieved data cid %s which contains %d bytes\n", cidToRetrieve.String(), len(blk.RawData()))
+			return true, nil
+		}
+
+		// if not at bottom of the tree, keep going down the links until we reach it
+		links, err := FindLinks(ctx, blk)
+		if err != nil {
+			return false, errors.Wrap(err, "unable to find links")
+		}
+
+		logger.Debugf("retrieved %s which has %d links\n", cidToRetrieve.String(), len(links))
+
+		nextIndex := 0
+		rand.Seed(time.Now().UnixNano())
+		if i == 0 {
+			// Special logic for when we are at the root node
+			if len(links) == 0 {
+				return false, fmt.Errorf("root node contains no links, will not traverse any further")
+			}
+			if len(links) == 1 {
+				// Generally this should not happen as the root node should contain at least one AggregateManifest and other links
+				// however, there may be a different construction in the future where this is still valid, so we will attempt to retrieve
+				logger.Debugf("starting node contains only 1 link - will still attempt retrieval test")
+				nextIndex = 0
+			} else {
+				// To be safe, never grab the first link off the root as it may refer to the AggregateManifest
+				nextIndex = 1 + rand.Intn(len(links)-1)
+			}
+		} else {
+			// Logic for all other non-root nodes
+			if len(links) < 1 {
+				return false, fmt.Errorf("node at depth %d contains no links, will not traverse any further", i)
+			}
+			// randomly pick a link to go down
+			nextIndex = rand.Intn(len(links))
+		}
+
+		cidToRetrieve, err = cid.Parse(links[nextIndex].String())
+		if err != nil {
+			return false, errors.Wrap(err, "unable to parse cid")
+		}
+	}
+
+	return false, nil
+}
+
+// Returns the raw block data, the links, and error if any
+func (c BitswapClient) RetrieveBlock(
+	parent context.Context,
+	target peer.AddrInfo,
+	cid cid.Cid) (blocks.Block, error) {
+	logger := logging.Logger("bitswap_retrieve_block").With("cid", cid).With("target", target)
+	network := bsnet.NewFromIpfsHost(c.host, SingleContentRouter{
+		AddrInfo: target,
+	})
+	bswap := bsclient.New(parent, network, blockstore.NewBlockstore(datastore.NewMapDatastore()))
+	notFound := make(chan struct{})
+	network.Start(MessageReceiver{BSClient: bswap, MessageHandler: func(
+		ctx context.Context, sender peer.ID, incoming bsmsg.BitSwapMessage) {
+		if sender == target.ID && slices.Contains(incoming.DontHaves(), cid) {
+			logger.Info("Block not found")
+			close(notFound)
+		}
+	}})
+	defer bswap.Close()
+	defer network.Stop()
+	connectContext, cancel := context.WithTimeout(parent, c.timeout)
+	defer cancel()
+	logger.Info("Connecting to target peer...")
+	err := c.host.Connect(connectContext, target)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to connect to target peer")
+	}
+
+	resultChan := make(chan blocks.Block)
+	errChan := make(chan error)
+	go func() {
+		logger.Debug("Retrieving block...")
+		blk, err := bswap.GetBlock(connectContext, cid)
+		if err != nil {
+			logger.Info(err)
+			errChan <- err
+		} else {
+			resultChan <- blk
+		}
+	}()
+	select {
+	case <-notFound:
+		return nil, errors.New("DONT_HAVE received from the target peer")
+
+	case blk := <-resultChan:
+		return blk, nil
+
+	case err := <-errChan:
+		return nil, errors.Wrap(err, "error received %s")
+	}
+}
+
+// Attempts to decode the block data into a node and return its links
+func FindLinks(ctx context.Context, blk blocks.Block) ([]datamodel.Link, error) {
+	if blk.Cid().Prefix().Codec == cid.Raw {
+		// This can happen at the bottom of the tree
+		return nil, errors.New("raw block encountered " + blk.Cid().String())
+	}
+
+	decoder, err := cidlink.DefaultLinkSystem().DecoderChooser(cidlink.Link{Cid: blk.Cid()})
+
+	if err != nil {
+		return nil, err
+	}
+
+	node, err := ipld.Decode(blk.RawData(), decoder)
+	if err != nil {
+		return nil, err
+	}
+
+	links, err := traversal.SelectLinks(node)
+	if err != nil {
+		return nil, err
+	}
+
+	return links, nil
 }
