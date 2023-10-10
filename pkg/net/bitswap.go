@@ -167,7 +167,7 @@ func (c BitswapClient) Retrieve(
 // Starts with the root CID, then fetches a random CID from the children and grandchildren nodes, until it reaches `traverseDepth`
 // Note: the root CID is considered depth `0`, so passing `traverseDepth=0` will only fetch the root CID
 // Returns true if all retrievals were successful, false if any failed
-func SpadeTraversal(ctx context.Context, startingCid cid.Cid, target peer.AddrInfo, traverseDepth uint) (*task.RetrievalResult, error) {
+func (c BitswapClient) SpadeTraversal(parent context.Context, startingCid cid.Cid, target peer.AddrInfo, traverseDepth uint) (*task.RetrievalResult, error) {
 	logger := logging.Logger("bitswap_client_spade").With("cid", startingCid).With("target", target)
 	cidToRetrieve := startingCid
 
@@ -178,7 +178,7 @@ func SpadeTraversal(ctx context.Context, startingCid cid.Cid, target peer.AddrIn
 	for {
 		// For some reason, need to re-init the host & client every time we do a fetch
 		// otherwise, we get context timeout error after the first fetch
-		host, err := InitHost(ctx, nil)
+		host, err := InitHost(parent, nil)
 		if err != nil {
 			return task.NewErrorRetrievalResult(task.CannotConnect, errors.Wrap(err, "failed to init host %s")), nil
 		}
@@ -187,7 +187,7 @@ func SpadeTraversal(ctx context.Context, startingCid cid.Cid, target peer.AddrIn
 
 		// Retrieval
 		logger.Debugf("retrieving %s\n", cidToRetrieve.String())
-		blk, err := client.RetrieveBlock(ctx, target, cidToRetrieve)
+		blk, err := client.RetrieveBlock(parent, target, cidToRetrieve)
 		if err != nil {
 			return task.NewErrorRetrievalResultWithErrorResolution(task.RetrievalFailure, err), nil
 		}
@@ -202,7 +202,7 @@ func SpadeTraversal(ctx context.Context, startingCid cid.Cid, target peer.AddrIn
 		}
 
 		// if not at bottom of the tree, keep going down the links until we reach it
-		links, err := FindLinks(ctx, blk)
+		links, err := FindLinks(parent, blk)
 		if err != nil {
 			return task.NewErrorRetrievalResultWithErrorResolution(task.CannotDecodeLinks, err), nil
 		}

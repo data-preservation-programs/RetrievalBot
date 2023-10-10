@@ -1,10 +1,11 @@
 package task
 
 import (
+	"time"
+
 	"github.com/data-preservation-programs/RetrievalBot/pkg/convert"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/pkg/errors"
-	"time"
 )
 
 type Provider struct {
@@ -42,6 +43,13 @@ const (
 	GraphSync ModuleName = "graphsync"
 	HTTP      ModuleName = "http"
 	Bitswap   ModuleName = "bitswap"
+)
+
+type RetrieveType string
+
+const (
+	Any   RetrieveType = "any"
+	Spade RetrieveType = "spade"
 )
 
 type Content struct {

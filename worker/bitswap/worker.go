@@ -2,6 +2,7 @@ package bitswap
 
 import (
 	"context"
+	"strconv"
 
 	"github.com/data-preservation-programs/RetrievalBot/pkg/convert"
 	"github.com/data-preservation-programs/RetrievalBot/pkg/model"
@@ -84,10 +85,18 @@ func (e Worker) DoWork(tsk task.Task) (*task.RetrievalResult, error) {
 		return task.NewErrorRetrievalResult(task.ProtocolNotSupported, errors.New("No bitswap multiaddr available")), nil
 	}
 
-	// TODO: Spade Retrieval
-	// TODO: Enum/type for retrieval type
-	if tsk.Metadata["retrieve_type"] == "spade" {
-		logger.Warn("Spade retrieval not yet implemented")
+	if tsk.Metadata["retrieve_type"] == string(task.Spade) {
+		depth, err := strconv.ParseUint(tsk.Metadata["traverse_depth"], 10, 32)
+
+		if err != nil {
+			return nil, errors.Wrap(err, "failed to parse traverse depth")
+		}
+
+		return client.SpadeTraversal(ctx, contentCID, peer.AddrInfo{
+			ID:    peerID,
+			Addrs: addrs,
+		}, uint(depth),
+		)
 	}
 
 	//nolint:wrapcheck
