@@ -250,6 +250,7 @@ func (c BitswapClient) SpadeTraversal(parent context.Context, target peer.AddrIn
 }
 
 // Returns the raw block data, the links, and error if any
+// Takes in `network` and `bswap` client, so that it can be used in a loop for traversals / multiple retrievals
 func (c BitswapClient) RetrieveBlock(
 	parent context.Context,
 	target peer.AddrInfo,

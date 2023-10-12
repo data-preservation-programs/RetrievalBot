@@ -91,7 +91,6 @@ func AddSpadeTasks(ctx context.Context, requester string, replicasToTest map[int
 
 var spadev0Metadata map[string]string = map[string]string{
 	"retrieve_type":  string(task.Spade),
-	"retrieve_size":  "1048576",
 	"traverse_depth": "3",
 }
 
