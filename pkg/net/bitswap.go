@@ -171,23 +171,28 @@ func (c BitswapClient) SpadeTraversal(parent context.Context, target peer.AddrIn
 	logger := logging.Logger("bitswap_client_spade").With("cid", startingCid).With("target", target)
 	cidToRetrieve := startingCid
 
+	// Initialize hosts and clients required to do all the retrieval tests
+	host, err := InitHost(parent, nil)
+	if err != nil {
+		return task.NewErrorRetrievalResult(task.CannotConnect, errors.Wrap(err, "failed to init host %s")), nil
+	}
+	client := NewBitswapClient(host, time.Second*1)
+	network := bsnet.NewFromIpfsHost(client.host, SingleContentRouter{
+		AddrInfo: target,
+	})
+	bswap := bsclient.New(parent, network, blockstore.NewBlockstore(datastore.NewMapDatastore()))
+
+	defer bswap.Close()
+	defer network.Stop()
+
 	startTime := time.Now()
 
 	// support structures such as: https://github.com/filecoin-project/go-dagaggregator-unixfs#grouping-unixfs-structure
 	i := uint(0)
 	for {
-		// For some reason, need to re-init the host & client every time we do a fetch
-		// otherwise, we get context timeout error after the first fetch
-		host, err := InitHost(parent, nil)
-		if err != nil {
-			return task.NewErrorRetrievalResult(task.CannotConnect, errors.Wrap(err, "failed to init host %s")), nil
-		}
-
-		client := NewBitswapClient(host, time.Second*1)
-
 		// Retrieval
 		logger.Infof("retrieving %s\n", cidToRetrieve.String())
-		blk, err := client.RetrieveBlock(parent, target, cidToRetrieve)
+		blk, err := client.RetrieveBlock(parent, target, network, bswap, cidToRetrieve)
 		if err != nil {
 			return task.NewErrorRetrievalResultWithErrorResolution(task.RetrievalFailure, err), nil
 		}
@@ -248,12 +253,11 @@ func (c BitswapClient) SpadeTraversal(parent context.Context, target peer.AddrIn
 func (c BitswapClient) RetrieveBlock(
 	parent context.Context,
 	target peer.AddrInfo,
+	network bsnet.BitSwapNetwork,
+	bswap *bsclient.Client,
 	cid cid.Cid) (blocks.Block, error) {
 	logger := logging.Logger("bitswap_retrieve_block").With("cid", cid).With("target", target)
-	network := bsnet.NewFromIpfsHost(c.host, SingleContentRouter{
-		AddrInfo: target,
-	})
-	bswap := bsclient.New(parent, network, blockstore.NewBlockstore(datastore.NewMapDatastore()))
+
 	notFound := make(chan struct{})
 	network.Start(MessageReceiver{BSClient: bswap, MessageHandler: func(
 		ctx context.Context, sender peer.ID, incoming bsmsg.BitSwapMessage) {
@@ -262,8 +266,6 @@ func (c BitswapClient) RetrieveBlock(
 			close(notFound)
 		}
 	}})
-	defer bswap.Close()
-	defer network.Stop()
 	connectContext, cancel := context.WithTimeout(parent, c.timeout)
 	defer cancel()
 	logger.Info("Connecting to target peer...")
