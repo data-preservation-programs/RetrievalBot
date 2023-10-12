@@ -172,12 +172,7 @@ func (c BitswapClient) SpadeTraversal(parent context.Context, target peer.AddrIn
 	cidToRetrieve := startingCid
 
 	// Initialize hosts and clients required to do all the retrieval tests
-	host, err := InitHost(parent, nil)
-	if err != nil {
-		return task.NewErrorRetrievalResult(task.CannotConnect, errors.Wrap(err, "failed to init host %s")), nil
-	}
-	client := NewBitswapClient(host, time.Second*1)
-	network := bsnet.NewFromIpfsHost(client.host, SingleContentRouter{
+	network := bsnet.NewFromIpfsHost(c.host, SingleContentRouter{
 		AddrInfo: target,
 	})
 	bswap := bsclient.New(parent, network, blockstore.NewBlockstore(datastore.NewMapDatastore()))
@@ -192,7 +187,7 @@ func (c BitswapClient) SpadeTraversal(parent context.Context, target peer.AddrIn
 	for {
 		// Retrieval
 		logger.Infof("retrieving %s\n", cidToRetrieve.String())
-		blk, err := client.RetrieveBlock(parent, target, network, bswap, cidToRetrieve)
+		blk, err := c.RetrieveBlock(parent, target, network, bswap, cidToRetrieve)
 		if err != nil {
 			return task.NewErrorRetrievalResultWithErrorResolution(task.RetrievalFailure, err), nil
 		}
