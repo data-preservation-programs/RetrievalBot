@@ -298,7 +298,7 @@ func (c BitswapClient) RetrieveBlock(
 func FindLinks(ctx context.Context, blk blocks.Block) ([]datamodel.Link, error) {
 	if blk.Cid().Prefix().Codec == cid.Raw {
 		// Note: this case will happen at the bottom of the tree
-		return nil, errors.New("raw block encountered " + blk.Cid().String())
+		return []datamodel.Link{}, nil
 	}
 
 	decoder, err := cidlink.DefaultLinkSystem().DecoderChooser(cidlink.Link{Cid: blk.Cid()})
