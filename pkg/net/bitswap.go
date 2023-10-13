@@ -164,10 +164,10 @@ func (c BitswapClient) Retrieve(
 	}
 }
 
-// Starts with the root CID, then fetches a random CID from the children and grandchildren nodes, until it reaches `traverseDepth`
+// Starts with the root CID, then fetches a random CID from the children and grandchildren nodes, until it reaches `traverseDepth` or hits a node with no links
 // Note: the root CID is considered depth `0`, so passing `traverseDepth=0` will only fetch the root CID
 // Returns a `SuccessfulRetrievalResult` if *all* retrievals were successful, `ErrorRetrievalResult` if any failed
-func (c BitswapClient) SpadeTraversal(parent context.Context, target peer.AddrInfo, startingCid cid.Cid, traverseDepth uint) (*task.RetrievalResult, error) {
+func (c BitswapClient) SpadeTraversal(parent context.Context, target peer.AddrInfo, startingCid cid.Cid, maxTraverseDepth uint) (*task.RetrievalResult, error) {
 	logger := logging.Logger("bitswap_client_spade").With("cid", startingCid).With("target", target)
 	cidToRetrieve := startingCid
 
@@ -188,11 +188,15 @@ func (c BitswapClient) SpadeTraversal(parent context.Context, target peer.AddrIn
 		// Retrieval
 		logger.Infof("retrieving %s\n", cidToRetrieve.String())
 		blk, err := c.RetrieveBlock(parent, target, network, bswap, cidToRetrieve)
+
+		// Compute the CID of the block (we can verify that it matches after this)
+		// c2, err := cidToRetrieve.Prefix().Sum(blk.RawData())
+
 		if err != nil {
 			return task.NewErrorRetrievalResultWithErrorResolution(task.RetrievalFailure, err), nil
 		}
 
-		if i == traverseDepth {
+		if i == maxTraverseDepth {
 			var size = int64(len(blk.RawData()))
 			elapsed := time.Since(startTime)
 			logger.With("size", size).With("elapsed", elapsed).Info("Retrieved block")
@@ -201,39 +205,25 @@ func (c BitswapClient) SpadeTraversal(parent context.Context, target peer.AddrIn
 			return task.NewSuccessfulRetrievalResult(elapsed, size, elapsed), nil
 		}
 
-		// if not at bottom of the tree, keep going down the links until we reach it
+		// if not at bottom of the tree, keep going down the links until we reach it or hit a dead end
 		links, err := FindLinks(parent, blk)
 		if err != nil {
 			return task.NewErrorRetrievalResultWithErrorResolution(task.CannotDecodeLinks, err), nil
 		}
 
-		logger.Debugf("retrieved %s which has %d links\n", cidToRetrieve.String(), len(links))
+		logger.Debugf("cid %s has %d links\n", cidToRetrieve.String(), len(links))
 
-		nextIndex := 0
-		rand.Seed(time.Now().UnixNano())
-		if i == 0 {
-			// Special logic for when we are at the root node
+		if len(links) == 0 {
+			var size = int64(len(blk.RawData()))
+			elapsed := time.Since(startTime)
+			logger.With("size", size).With("elapsed", elapsed).Info("Retrieved block")
 
-			if len(links) == 0 {
-				return task.NewErrorRetrievalResult(task.CannotTraverse, errors.Errorf("root node contains no links, cannot traverse any further")), nil
-			}
-			if len(links) == 1 {
-				// Generally this should not happen as the root node should contain at least one AggregateManifest and other links
-				// however, there may be a different construction in the future where this is still valid, so we will attempt to retrieve
-				logger.Info("starting node contains only 1 link - will still attempt retrieval test")
-				nextIndex = 0
-			} else {
-				// To be safe, never grab the first link off the root as it may refer to the AggregateManifest
-				nextIndex = 1 + rand.Intn(len(links)-1)
-			}
-		} else {
-			// Logic for all other non-root nodes
-			if len(links) < 1 {
-				return task.NewErrorRetrievalResult(task.CannotTraverse, errors.Errorf("node at depth %d contains no links, cannot traverse any further", i)), nil
-			}
-			// randomly pick a link to go down
-			nextIndex = rand.Intn(len(links))
+			return task.NewSuccessfulRetrievalResult(elapsed, size, elapsed), nil
 		}
+
+		// randomly pick a link to go down
+		rand.Seed(time.Now().UnixNano())
+		nextIndex := rand.Intn(len(links))
 
 		cidToRetrieve, err = cid.Parse(links[nextIndex].String())
 		if err != nil {
@@ -251,13 +241,13 @@ func (c BitswapClient) RetrieveBlock(
 	target peer.AddrInfo,
 	network bsnet.BitSwapNetwork,
 	bswap *bsclient.Client,
-	cid cid.Cid) (blocks.Block, error) {
-	logger := logging.Logger("bitswap_retrieve_block").With("cid", cid).With("target", target)
+	targetCid cid.Cid) (blocks.Block, error) {
+	logger := logging.Logger("bitswap_retrieve_block").With("cid", targetCid).With("target", target)
 
 	notFound := make(chan struct{})
 	network.Start(MessageReceiver{BSClient: bswap, MessageHandler: func(
 		ctx context.Context, sender peer.ID, incoming bsmsg.BitSwapMessage) {
-		if sender == target.ID && slices.Contains(incoming.DontHaves(), cid) {
+		if sender == target.ID && slices.Contains(incoming.DontHaves(), targetCid) {
 			logger.Info("Block not found")
 			close(notFound)
 		}
@@ -274,7 +264,7 @@ func (c BitswapClient) RetrieveBlock(
 	errChan := make(chan error)
 	go func() {
 		logger.Debug("Retrieving block...")
-		blk, err := bswap.GetBlock(connectContext, cid)
+		blk, err := bswap.GetBlock(connectContext, targetCid)
 		if err != nil {
 			logger.Info(err)
 			errChan <- err

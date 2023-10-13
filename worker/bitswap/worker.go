@@ -86,10 +86,10 @@ func (e Worker) DoWork(tsk task.Task) (*task.RetrievalResult, error) {
 	}
 
 	if tsk.Metadata["retrieve_type"] == string(task.Spade) {
-		depth, err := strconv.ParseUint(tsk.Metadata["traverse_depth"], 10, 32)
+		depth, err := strconv.ParseUint(tsk.Metadata["max_traverse_depth"], 10, 32)
 
 		if err != nil {
-			return nil, errors.Wrap(err, "failed to parse traverse depth")
+			return nil, errors.Wrap(err, "failed to parse max_traverse_depth")
 		}
 
 		return client.SpadeTraversal(ctx, peer.AddrInfo{
