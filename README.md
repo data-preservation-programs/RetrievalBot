@@ -1,8 +1,6 @@
-# RetrievalBot
+# ♠️ SpadeRetrievalBot
 
-The goal of retrieval bot is to offer a scalable framework to perform retrieval testing over Filecoin network. 
-
-There is no centralized orchestrator to manage retrieval queue or work. Instead, it uses MongoDB to manage work queue as well as saving retrieval results.
+This is a fork of the Data Programs [Retrieval Bot](https://github.com/data-preservation-programs/RetrievalBot) with customizations specific for the [Spade](https://github.com/data-preservation-programs/spade) platform.
 
 ## Workers
 Workers refer to the unit that consumes the worker queue. There are 4 basic types of workers as of now.
