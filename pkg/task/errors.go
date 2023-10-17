@@ -3,8 +3,9 @@ package task
 import (
 	"context"
 	"errors"
-	"github.com/data-preservation-programs/RetrievalBot/pkg/requesterror"
 	"strings"
+
+	"github.com/data-preservation-programs/RetrievalBot/pkg/requesterror"
 )
 
 type ErrorCode string
@@ -28,6 +29,8 @@ const (
 	CIDCodecNotSupported           ErrorCode = "cid_codec_not_supported"
 	ResponseRejected               ErrorCode = "response_rejected"
 	DealStateMissing               ErrorCode = "deal_state_missing"
+	CannotDecodeLinks              ErrorCode = "cannot_decode_links"
+	CannotTraverse                 ErrorCode = "cannot_traverse"
 )
 
 var errorStringMap = map[string]ErrorCode{

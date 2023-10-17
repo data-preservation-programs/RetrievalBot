@@ -90,9 +90,8 @@ func AddSpadeTasks(ctx context.Context, requester string, replicasToTest map[int
 }
 
 var spadev0Metadata map[string]string = map[string]string{
-	"retrieve_type": "spade",
-	"retrieve_size": "1048576",
-	// todo: specify # of cids to test per layer of the tree TBD
+	"retrieve_type":      string(task.Spade),
+	"max_traverse_depth": "3",
 }
 
 func prepareTasksForSP(
