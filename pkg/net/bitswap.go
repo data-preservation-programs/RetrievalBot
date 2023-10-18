@@ -164,10 +164,14 @@ func (c BitswapClient) Retrieve(
 	}
 }
 
-// Starts with the root CID, then fetches a random CID from the children and grandchildren nodes, until it reaches `traverseDepth` or hits a node with no links
+// Starts with the root CID, then fetches a random CID from the children and grandchildren nodes,
+// until it reaches `traverseDepth` or hits a node with no links.
 // Note: the root CID is considered depth `0`, so passing `traverseDepth=0` will only fetch the root CID
 // Returns a `SuccessfulRetrievalResult` if *all* retrievals were successful, `ErrorRetrievalResult` if any failed
-func (c BitswapClient) SpadeTraversal(parent context.Context, target peer.AddrInfo, startingCid cid.Cid, maxTraverseDepth uint) (*task.RetrievalResult, error) {
+func (c BitswapClient) SpadeTraversal(parent context.Context,
+	target peer.AddrInfo,
+	startingCid cid.Cid,
+	maxTraverseDepth uint) (*task.RetrievalResult, error) {
 	logger := logging.Logger("bitswap_client_spade").With("cid", startingCid).With("target", target)
 	cidToRetrieve := startingCid
 
@@ -222,7 +226,7 @@ func (c BitswapClient) SpadeTraversal(parent context.Context, target peer.AddrIn
 		}
 
 		// randomly pick a link to go down
-		rand.Seed(time.Now().UnixNano())
+		//nolint:all we don't need crypto secured random numbers
 		nextIndex := rand.Intn(len(links))
 
 		cidToRetrieve, err = cid.Parse(links[nextIndex].String())

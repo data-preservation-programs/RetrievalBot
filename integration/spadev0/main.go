@@ -3,12 +3,11 @@ package main
 import (
 	"context"
 	"encoding/json"
-	"io/ioutil"
+	"io"
 	"math"
 	"math/rand"
 	"net/http"
 	"os"
-	"time"
 
 	logging "github.com/ipfs/go-log/v2"
 	_ "github.com/joho/godotenv/autoload"
@@ -118,7 +117,7 @@ func fetchActiveReplicas(ctx context.Context, url string) (*ActiveReplicas, erro
 
 	defer decompressor.Close()
 
-	data, err := ioutil.ReadAll(decompressor)
+	data, err := io.ReadAll(decompressor)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to read decompressed data")
 	}
@@ -167,7 +166,6 @@ func selectReplicasToTest(perProvider map[int]ProviderReplicas) map[int][]Replic
 		}
 
 		// Randomize which CIDs are selected
-		rand.Seed(time.Now().UnixNano())
 		indices := rand.Perm(maxReplicas)[:numCidsToTest]
 
 		for _, index := range indices {
