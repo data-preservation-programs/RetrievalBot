@@ -193,6 +193,10 @@ func (c BitswapClient) SpadeTraversal(parent context.Context,
 		logger.Infof("retrieving %s\n", cidToRetrieve.String())
 		blk, err := c.RetrieveBlock(parent, target, network, bswap, cidToRetrieve)
 
+		if !blk.Cid().Equals(cidToRetrieve) {
+			return task.NewErrorRetrievalResult(task.CIDMismatch, errors.Errorf("retrieved cid does not match requested: %s, %s", blk.Cid().String(), cidToRetrieve)), nil
+		}
+
 		// Compute the CID of the block (we can verify that it matches after this)
 		// c2, err := cidToRetrieve.Prefix().Sum(blk.RawData())
 

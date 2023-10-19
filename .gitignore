@@ -32,3 +32,6 @@
 #vscode 
 .vscode/*
 *.code-workspace
+
+#sandbox
+*.sandbox.*

@@ -27,6 +27,7 @@ const (
 	NotOnline                      ErrorCode = "not_online"
 	UnconfirmedBlockTransfer       ErrorCode = "unconfirmed_block_transfer"
 	CIDCodecNotSupported           ErrorCode = "cid_codec_not_supported"
+	CIDMismatch                    ErrorCode = "cid_mismatch"
 	ResponseRejected               ErrorCode = "response_rejected"
 	DealStateMissing               ErrorCode = "deal_state_missing"
 	CannotDecodeLinks              ErrorCode = "cannot_decode_links"
