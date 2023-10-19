@@ -186,22 +186,19 @@ func (c BitswapClient) SpadeTraversal(parent context.Context,
 
 	startTime := time.Now()
 
-	// support structures such as: https://github.com/filecoin-project/go-dagaggregator-unixfs#grouping-unixfs-structure
 	i := uint(0)
 	for {
 		// Retrieval
 		logger.Infof("retrieving %s\n", cidToRetrieve.String())
 		blk, err := c.RetrieveBlock(parent, target, network, bswap, cidToRetrieve)
 
-		if !blk.Cid().Equals(cidToRetrieve) {
-			return task.NewErrorRetrievalResult(task.CIDMismatch, errors.Errorf("retrieved cid does not match requested: %s, %s", blk.Cid().String(), cidToRetrieve)), nil
-		}
-
-		// Compute the CID of the block (we can verify that it matches after this)
-		// c2, err := cidToRetrieve.Prefix().Sum(blk.RawData())
-
 		if err != nil {
 			return task.NewErrorRetrievalResultWithErrorResolution(task.RetrievalFailure, err), nil
+		}
+
+		// Verify returned content hashes to the CID we're expecting
+		if !blk.Cid().Equals(cidToRetrieve) {
+			return task.NewErrorRetrievalResult(task.CIDMismatch, errors.Errorf("retrieved cid does not match requested: %s, %s", blk.Cid().String(), cidToRetrieve)), nil
 		}
 
 		if i == maxTraverseDepth {
