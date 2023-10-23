@@ -89,9 +89,14 @@ func AddSpadeTasks(ctx context.Context, requester string, replicasToTest map[int
 	return nil
 }
 
-var spadev0Metadata map[string]string = map[string]string{
+var spadev0BitSwapMetadata map[string]string = map[string]string{
 	"retrieve_type":      string(task.Spade),
 	"max_traverse_depth": "3",
+}
+
+var spadev0HttpMetadata map[string]string = map[string]string{
+	"retrieve_type": string(task.Piece),
+	"retrieve_size": "1048576",
 }
 
 func prepareTasksForSP(
@@ -129,7 +134,7 @@ func prepareTasksForSP(
 		tasks = append(tasks, task.Task{
 			Requester: requester,
 			Module:    task.Bitswap,
-			Metadata:  spadev0Metadata,
+			Metadata:  spadev0BitSwapMetadata,
 			Provider: task.Provider{
 				ID:         spid.String(),
 				PeerID:     providerInfo.PeerId,
@@ -143,7 +148,29 @@ func prepareTasksForSP(
 				CID: document.OptionalDagRoot,
 			},
 			CreatedAt: time.Now().UTC(),
-			Timeout:   env.GetDuration(env.FilplusIntegrationTaskTimeout, 15*time.Second),
+			Timeout:   env.GetDuration(env.SpadeIntegrationTaskTimeout, 15*time.Second),
+		})
+	}
+
+	for _, document := range replicas {
+		tasks = append(tasks, task.Task{
+			Requester: requester,
+			Module:    task.HTTP,
+			Metadata:  spadev0HttpMetadata,
+			Provider: task.Provider{
+				ID:         document.PieceCID,
+				PeerID:     providerInfo.PeerId,
+				Multiaddrs: convert.MultiaddrsBytesToStringArraySkippingError(providerInfo.Multiaddrs),
+				City:       location.City,
+				Region:     location.Region,
+				Country:    location.Country,
+				Continent:  location.Continent,
+			},
+			Content: task.Content{
+				CID: document.PieceCID,
+			},
+			CreatedAt: time.Now().UTC(),
+			Timeout:   env.GetDuration(env.SpadeIntegrationTaskTimeout, 15*time.Second),
 		})
 	}
 
@@ -164,7 +191,7 @@ func addErrorResults(
 		Task: task.Task{
 			Requester: requester,
 			Module:    "spadev0",
-			Metadata:  spadev0Metadata,
+			Metadata:  make(map[string]string),
 			Provider: task.Provider{
 				ID:         spid,
 				PeerID:     providerInfo.PeerId,
@@ -175,7 +202,7 @@ func addErrorResults(
 				Continent:  location.Continent,
 			},
 			CreatedAt: time.Now().UTC(),
-			Timeout:   env.GetDuration(env.FilplusIntegrationTaskTimeout, 15*time.Second)},
+			Timeout:   env.GetDuration(env.SpadeIntegrationTaskTimeout, 15*time.Second)},
 		Retriever: task.Retriever{
 			PublicIP:  ipInfo.IP,
 			City:      ipInfo.City,

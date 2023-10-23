@@ -50,6 +50,7 @@ type RetrieveType string
 const (
 	Any   RetrieveType = "any"
 	Spade RetrieveType = "spade"
+	Piece RetrieveType = "piece"
 )
 
 type Content struct {
