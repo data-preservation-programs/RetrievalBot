@@ -140,7 +140,7 @@ func prepareTasksForSP(
 				Continent:  location.Continent,
 			},
 			Content: task.Content{
-				CID: document.PieceCID,
+				CID: document.OptionalDagRoot,
 			},
 			CreatedAt: time.Now().UTC(),
 			Timeout:   env.GetDuration(env.FilplusIntegrationTaskTimeout, 15*time.Second),
